@@ -15,11 +15,11 @@ Until now the building process was creating short strings for message IDs. This 
 
 - All missing translations can be added directly to the build without worrying about future releases and rebuilding the editor. Though, we still highly recommend adding missing or incorrect strings via [https://www.transifex.com/ckeditor/ckeditor5/](https://www.transifex.com/ckeditor/ckeditor5/) as we fetch translations from there with every release.
 - building the editor two times with [CKEditorWebpackPlugin](https://github.com/ckeditor/ckeditor5-dev/tree/master/packages/ckeditor5-dev-webpack-plugin) will produce the same output
-- plugin owners will be able to use the `t()` ([https://ckeditor.com/docs/ckeditor5/19.0.0/api/module_utils_locale-Locale.html#function-t](https://ckeditor.com/docs/ckeditor5/19.0.0/api/module_utils_locale-Locale.html#function-t)) function and easily provide translations for messages in a few ways
+- plugin owners will be able to use the {@link module:utils/locale~Locale#t `t()`} function and easily provide translations for messages in a few ways
 
-### Glossary
+### Glossary of terms
 
-Before we start, let's explain what the crucial part od the translation process mean:
+Before we start, let's explain the meaning of terms that are crucial for the translation process:
 
 - *message* - a string or an object that should be translated, the string version works as a shortcut for the `{ id: message, string: message }` object form,
 - *message ID* - a property used to distinguish messages, useful for short messages, where a collision can occur, like `%0 images`,
@@ -86,7 +86,7 @@ editor.ui.componentFactory.add( 'smilingFaceEmoji', locale => {
 // ...
 ```
 
-Note that this sample lacks a few parts. To check how to create a complete plugin, for example, check the [Creating a simple plugin guide](https://ckeditor.com/docs/ckeditor5/latest/framework/guides/creating-simple-plugin.html).
+Note that this sample lacks a few parts. To check how to create a complete plugin, for example, check the {@link framework/guides/creating-simple-plugin Creating a simple plugin guide}.
 
 ### Localizing aria attributes:
 
@@ -105,7 +105,7 @@ editingView.change( writer => {
 
 ### Localizing pending actions
 
-Pending actions are used to inform the user that the action is in progress and we will lost data while exiting the editor - see [https://ckeditor.com/docs/ckeditor5/latest/api/module_core_pendingactions-PendingActions.html](https://ckeditor.com/docs/ckeditor5/latest/api/module_core_pendingactions-PendingActions.html)
+Pending actions are used to inform the user that the action is in progress and we will lost data while exiting the editor - see {@link module:core/pendingactions~PendingActions the `PendingActions` class}
 
 ```js
 _updatePendingAction() {
@@ -123,17 +123,17 @@ _updatePendingAction() {
 
 ## Adding translations and localizing the editor UI
 
-First of all, if you have found a missing or an incorrect translation in the CKEditor 5 translations, check [how you can contribute to the project](https://ckeditor.com/docs/ckeditor5/18.0.0/framework/guides/contributing/contributing.html#translating)! Your help will be appreciated by others!
+First of all, if you have found a missing or an incorrect translation in the CKEditor 5 translations, check {@link guide/contributing/contributing how you can contribute to the project}! Your help will be appreciated by others!
 
 Adding translations to the editor can be done in three ways to satisfy various needs.
 
-- by adding translations via the `[translations-service#add()](https://ckeditor.com/docs/ckeditor5/19.0.0/api/module_utils_translation-service.html#static-function-add)` function - this function can be used at runtime before the editor starts
+- by adding translations via {@link module:utils/translations-service.add the translations-service's `add()` function} - this function can be used at runtime before the editor starts
 - by extending the global `window.CKEDITOR_TRANSLATIONS` object - this object can be modified before and after the build step. CKEditor 5 translations assets operate on this object.
 - by creating `.po` files with translations in the `lang/translations/` directory of the published package like other CKEditor 5 packages do - this option will be useful for 3rd-party plugin creators as this allows bundling translations only for needed languages during the webpack compilation.
 
 Note that the [CKEditorWebpackPlugin](https://github.com/ckeditor/ckeditor5-dev/tree/master/packages/ckeditor5-dev-webpack-plugin) is configured to parse by default only the CKEditor 5 source code when looking for messages and attaching translations to build. If you develop your own plugin outside of CKEditor 5 ecosystem you should override the `sourceFilesPattern` option (and the `packageNamePattern` option if you are creating `.po` files) to allow `CKEditorWebpackPlugin` to analyze the code and find messages to translate (and `.po` files with available translations). You should also mention these webpack plugin changes in your readme to make other users build the localized CKEditor 5 editor with your plugin correctly. This obstacle may be simplified in the future when the localization feature gets more popular.
 
-The first option of adding translations is via the  [`translations-service#add()`](https://ckeditor.com/docs/ckeditor5/19.0.0/api/module_utils_translation-service.html#static-function-add) helper. This utility adds translations to the `window.CKEDITOR_TRANSLATIONS` object by extending it. Since it needs to be imported It works only before building the editor. With the recent release, it started accepting the `getPluralForm` function as the third argument and started accepting an array of translations for a message if the message should support singular and plural forms.
+The first option of adding translations is via the {@link module:utils/translations-service.add the translations-service's `add()` helper}. This utility adds translations to the `window.CKEDITOR_TRANSLATIONS` object by extending it. Since it needs to be imported It works only before building the editor. With the recent release, it started accepting the `getPluralForm` function as the third argument and started accepting an array of translations for a message if the message should support singular and plural forms.
 
 ```js
 add( 'pl', {
@@ -175,7 +175,7 @@ msgid "Align left"
 msgstr "Alinear a la izquierda"
 ```
 
-To build the localized editor follow the steps from [building the editor using a specific language guide](https://ckeditor.com/docs/ckeditor5/18.0.0/features/ui-language.html#building-the-editor-using-a-specific-language).
+To build the localized editor follow the steps from {@link features/ui-language building the editor using a specific language guide}.
 
 ### Known limitations
 
