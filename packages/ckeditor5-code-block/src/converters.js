@@ -239,9 +239,16 @@ export function dataViewToModelCodeBlockInsertion( dataController, languageDefs 
 //
 // @param {String} stringifiedElement
 function extractDataFromCodeElement( stringifiedElement ) {
-	const data = new RegExp( /^<code[^>]*>([\S\s]*)<\/code>$/ ).exec( stringifiedElement )[ 1 ];
 
-	return data
-		.replace( /&lt;/g, '<' )
-		.replace( /&gt;/g, '>' );
+	let element = new RegExp( /^<code[^>]*>([\S\s]*)<\/code>$/ ).exec( stringifiedElement );
+
+	if(element !== null){
+		const data = new RegExp( /^<code[^>]*>([\S\s]*)<\/code>$/ ).exec( stringifiedElement )[ 1 ];
+		return data
+			.replace( /&lt;/g, '<' )
+			.replace( /&gt;/g, '>' );
+	} else {
+		return stringifiedElement.split("`").join("");
+	}
+
 }
