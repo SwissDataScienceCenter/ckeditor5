@@ -22,6 +22,8 @@ The software that makes the image upload possible is called an **upload adapter*
 * [**Official upload adapters**](#official-upload-adapters) &ndash; There are several features providing upload adapters developed and maintained by the CKEditor team. Pick the best one for your integration and let it handle the image upload in your project.
 * [**Custom upload adapters**](#implementing-your-own-upload-adapter) &ndash; Create your own upload adapter from scratch using the open API architecture of CKEditor 5.
 
+Read our comprehensive blog post about [Managing images with CKEditor 5](https://ckeditor.com/blog/managing-images-with-ckeditor-5/) to find out more details about image upload and management and to compare the available options.
+
 <info-box>
 	If you want to get a better look under the hood and learn more about the upload process, you can check out the {@link framework/guides/deep-dive/upload-adapter "Custom image upload adapter" deep dive guide} covering that topic.
 </info-box>
@@ -40,7 +42,7 @@ The demo below uses the {@link builds/guides/overview#classic-editor Classic edi
 
 CKEditor 5 introduces a new way of handling images, with a strong focus on the end–user experience. This feature is called {@link features/easy-image Easy Image} and its goal is to make the image upload as effortless and intuitive as possible.
 
-Easy Image is part of the [CKEditor Cloud Services](https://ckeditor.com/ckeditor-cloud-services/) offer. It is a <abbr title="Software as a service">SaaS</abbr> product that:
+Easy Image is part of the commercial [CKEditor Cloud Services](https://ckeditor.com/ckeditor-cloud-services/) offer. It is a <abbr title="Software as a service">SaaS</abbr> product that:
 
 * securely uploads images,
 * takes care of rescaling and optimizing them as well as providing various image sizes (responsive images),
@@ -52,7 +54,7 @@ All that with virtually zero server setup.
 
 ### CKFinder
 
-The {@link features/ckfinder CKFinder feature} provides a bridge between the rich-text editor and [CKFinder](https://ckeditor.com/ckfinder/), a browser-based file uploader with its server-side connectors (PHP, Java and ASP.NET).
+The {@link features/ckfinder CKFinder feature} provides a bridge between the rich-text editor and [CKFinder](https://ckeditor.com/ckfinder/), a browser-based commercial file uploader with its server-side connectors (PHP, Java and ASP.NET).
 
 There are two ways you can integrate CKEditor 5 with the CKFinder file manager:
 

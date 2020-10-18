@@ -150,9 +150,9 @@ export default class Renderer {
 				/**
 				 * Unknown type passed to Renderer.markToSync.
 				 *
-				 * @error renderer-unknown-type
+				 * @error view-renderer-unknown-type
 				 */
-				throw new CKEditorError( 'view-renderer-unknown-type: Unknown type passed to Renderer.markToSync.', this );
+				throw new CKEditorError( 'view-renderer-unknown-type', this );
 			}
 		}
 	}
@@ -273,10 +273,10 @@ export default class Renderer {
 					const deleteIndex = counter.equal + counter.delete;
 					const viewChild = viewElement.getChild( insertIndex );
 
-					// The 'uiElement' is a special one and its children are not stored in a view (#799),
-					// so we cannot use it with replacing flow (since it uses view children during rendering
-					// which will always result in rendering empty element).
-					if ( viewChild && !viewChild.is( 'uiElement' ) ) {
+					// UIElement and RawElement are special cases. Their children are not stored in a view (#799)
+					// so we cannot use them with replacing flow (since they use view children during rendering
+					// which will always result in rendering empty elements).
+					if ( viewChild && !( viewChild.is( 'uiElement' ) || viewChild.is( 'rawElement' ) ) ) {
 						this._updateElementMappings( viewChild, actualDomChildren[ deleteIndex ] );
 					}
 
@@ -332,7 +332,7 @@ export default class Renderer {
 	_getInlineFillerPosition() {
 		const firstPos = this.selection.getFirstPosition();
 
-		if ( firstPos.parent.is( 'text' ) ) {
+		if ( firstPos.parent.is( '$text' ) ) {
 			return ViewPosition._createBefore( this.selection.getFirstPosition().parent );
 		} else {
 			return firstPos;
@@ -387,7 +387,7 @@ export default class Renderer {
 			 *
 			 * @error view-renderer-filler-was-lost
 			 */
-			throw new CKEditorError( 'view-renderer-filler-was-lost: The inline filler node was lost.', this );
+			throw new CKEditorError( 'view-renderer-filler-was-lost', this );
 		}
 
 		if ( isInlineFiller( domFillerNode ) ) {
@@ -578,7 +578,7 @@ export default class Renderer {
 		}
 
 		// Unbind removed nodes. When node does not have a parent it means that it was removed from DOM tree during
-		// comparision with the expected DOM. We don't need to check child nodes, because if child node was reinserted,
+		// comparison with the expected DOM. We don't need to check child nodes, because if child node was reinserted,
 		// it was moved to DOM tree out of the removed node.
 		for ( const node of nodesToUnbind ) {
 			if ( !node.parentNode ) {
@@ -659,7 +659,7 @@ export default class Renderer {
 			return;
 		}
 
-		if ( viewNode.is( 'text' ) ) {
+		if ( viewNode.is( '$text' ) ) {
 			this.markedTexts.add( viewNode );
 		} else if ( viewNode.is( 'element' ) ) {
 			for ( const child of viewNode.getChildren() ) {
@@ -930,6 +930,7 @@ function addInlineFiller( domDocument, domParentOrArray, offset ) {
 function areSimilar( node1, node2 ) {
 	return isNode( node1 ) && isNode( node2 ) &&
 		!isText( node1 ) && !isText( node2 ) &&
+		node1.nodeType !== Node.COMMENT_NODE && node2.nodeType !== Node.COMMENT_NODE &&
 		node1.tagName.toLowerCase() === node2.tagName.toLowerCase();
 }
 

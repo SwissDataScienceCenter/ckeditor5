@@ -120,8 +120,7 @@ export default class AttributeElement extends Element {
 			 * @error attribute-element-get-elements-with-same-id-no-id
 			 */
 			throw new CKEditorError(
-				'attribute-element-get-elements-with-same-id-no-id: ' +
-				'Cannot get elements with the same id for an attribute element without id.',
+				'attribute-element-get-elements-with-same-id-no-id',
 				this
 			);
 		}
@@ -145,14 +144,13 @@ export default class AttributeElement extends Element {
 	 * Assuming that the object being checked is an attribute element, you can also check its
 	 * {@link module:engine/view/attributeelement~AttributeElement#name name}:
 	 *
-	 *		attributeElement.is( 'b' ); // -> true if this is a bold element
+	 *		attributeElement.is( 'element', 'b' ); // -> true if this is a bold element
 	 *		attributeElement.is( 'attributeElement', 'b' ); // -> same as above
-	 *		text.is( 'b' ); -> false
+	 *		text.is( 'element', 'b' ); -> false
 	 *
 	 * {@link module:engine/view/node~Node#is Check the entire list of view objects} which implement the `is()` method.
 	 *
-	 * @param {String} type Type to check when `name` parameter is present.
-	 * Otherwise, it acts like the `name` parameter.
+	 * @param {String} type Type to check.
 	 * @param {String} [name] Element name.
 	 * @returns {Boolean}
 	 */
@@ -160,7 +158,6 @@ export default class AttributeElement extends Element {
 		if ( !name ) {
 			return type === 'attributeElement' || type === 'view:attributeElement' ||
 				// From super.is(). This is highly utilised method and cannot call super. See ckeditor/ckeditor5#6529.
-				type === this.name || type === 'view:' + this.name ||
 				type === 'element' || type === 'view:element' ||
 				type === 'node' || type === 'view:node';
 		} else {

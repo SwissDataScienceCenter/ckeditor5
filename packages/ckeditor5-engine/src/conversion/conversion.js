@@ -106,8 +106,7 @@ export default class Conversion {
 			 * @error conversion-add-alias-dispatcher-not-registered
 			 */
 			throw new CKEditorError(
-				'conversion-add-alias-dispatcher-not-registered: ' +
-				'Trying to register and alias for a dispatcher that nas not been registered.',
+				'conversion-add-alias-dispatcher-not-registered',
 				this
 			);
 		}
@@ -183,7 +182,7 @@ export default class Conversion {
 			 *
 			 * @error conversion-for-unknown-group
 			 */
-			throw new CKEditorError( 'conversion-for-unknown-group: Trying to add a converter to an unknown dispatchers group.', this );
+			throw new CKEditorError( 'conversion-for-unknown-group', this );
 		}
 
 		return this._helpers.get( groupName );
@@ -337,7 +336,7 @@ export default class Conversion {
 	 *				viewElement => {
 	 *					const fontWeight = viewElement.getStyle( 'font-weight' );
 	 *
-	 *					if ( viewElement.is( 'span' ) && fontWeight && /\d+/.test() && Number( fontWeight ) > 500 ) {
+	 *					if ( viewElement.is( 'element', 'span' ) && fontWeight && /\d+/.test() && Number( fontWeight ) > 500 ) {
 	 *						// Returned value can be an object with the matched properties.
 	 *						// These properties will be "consumed" during the conversion.
 	 *						// See `engine.view.Matcher~MatcherPattern` and `engine.view.Matcher#match` for more details.
@@ -388,7 +387,7 @@ export default class Conversion {
 	 *
 	 *					const size = Number( match[ 1 ] );
 	 *
-	 *					if ( viewElement.is( 'span' ) && size > 10 ) {
+	 *					if ( viewElement.is( 'element', 'span' ) && size > 10 ) {
 	 *						// Returned value can be an object with the matched properties.
 	 *						// These properties will be "consumed" during the conversion.
 	 *						// See `engine.view.Matcher~MatcherPattern` and `engine.view.Matcher#match` for more details.
@@ -413,7 +412,7 @@ export default class Conversion {
 	 *
 	 *					const size = Number( match[ 1 ] );
 	 *
-	 *					if ( viewElement.is( 'span' ) && size < 10 ) {
+	 *					if ( viewElement.is( 'element', 'span' ) && size < 10 ) {
 	 *						// Returned value can be an object with the matched properties.
 	 *						// These properties will be "consumed" during the conversion.
 	 *						// See `engine.view.Matcher~MatcherPattern` and `engine.view.Matcher#match` for more details.
@@ -588,7 +587,7 @@ export default class Conversion {
 			 *
 			 * @error conversion-group-exists
 			 */
-			throw new CKEditorError( 'conversion-group-exists: Trying to register a group name that has already been registered.', this );
+			throw new CKEditorError( 'conversion-group-exists', this );
 		}
 
 		const helpers = isDowncast ? new DowncastHelpers( dispatchers ) : new UpcastHelpers( dispatchers );

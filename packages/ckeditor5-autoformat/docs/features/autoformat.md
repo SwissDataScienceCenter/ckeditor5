@@ -42,8 +42,9 @@ Example:
 
 In addition to enabling automatic text formatting, you may want to check the following productivity features:
 
-* {@link features/text-transformation Automatic text transformation} &ndash; It enables automatic turning snippets such as `(tm)` into `™` and `"foo"` into `“foo”`.
-* {@link features/mentions Mentions} &ndash; It brings support for smart autocompletion.
+* {@link features/text-transformation Automatic text transformation} &ndash; Enables automatic turning snippets such as `(tm)` into `™` and `"foo"` into `“foo”`.
+* {@link features/link#autolink-feature Autolink} &ndash; Turns the links and email addresses typed or pasted into the editor into active URLs.
+* {@link features/mentions Mentions} &ndash; Brings support for smart autocompletion.
 
 ## Installation
 
@@ -81,10 +82,10 @@ ClassicEditor
 
 ## Creating custom autoformatters
 
-The {@link module:autoformat/autoformat~Autoformat} feature bases on {@link module:autoformat/blockautoformatediting~BlockAutoformatEditing} and {@link module:autoformat/inlineautoformatediting~InlineAutoformatEditing} tools to create the autoformatters mentioned above.
+The {@link module:autoformat/autoformat~Autoformat} feature bases on {@link module:autoformat/blockautoformatediting~blockAutoformatEditing} and {@link module:autoformat/inlineautoformatediting~inlineAutoformatEditing} tools to create the autoformatters mentioned above.
 
-You can use these tools to create your own autoformatters. Check the [`Autoformat` feature's code](https://github.com/ckeditor/ckeditor5-autoformat/blob/master/src/autoformat.js) as an example.
+You can use these tools to create your own autoformatters. Check the [`Autoformat` feature's code](https://github.com/ckeditor/ckeditor5/blob/master/packages/ckeditor5-autoformat/src/autoformat.js) as an example.
 
 ## Contribute
 
-The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5-autoformat.
+The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-autoformat.

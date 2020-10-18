@@ -123,6 +123,12 @@ describe( 'MarkerCollection', () => {
 
 			expect( marker.getRange().isEqual( range2 ) ).to.be.true;
 		} );
+
+		it( 'should throw if marker name with "," is added', () => {
+			expectToThrowCKEditorError( () => {
+				markers._set( 'foo,bar', range );
+			}, 'markercollection-incorrect-marker-name', markers );
+		} );
 	} );
 
 	describe( 'has', () => {
@@ -209,7 +215,7 @@ describe( 'MarkerCollection', () => {
 		it( 'should throw if marker does not exist', () => {
 			expectToThrowCKEditorError( () => {
 				markers._refresh( 'name' );
-			}, /^markercollection-refresh-marker-not-exists:/, markers );
+			}, 'markercollection-refresh-marker-not-exists', markers );
 		} );
 	} );
 
@@ -427,7 +433,7 @@ describe( 'Marker', () => {
 		it( 'should return false for incorrect values', () => {
 			expect( marker.is( 'model' ) ).to.be.false;
 			expect( marker.is( 'model:node' ) ).to.be.false;
-			expect( marker.is( 'text' ) ).to.be.false;
+			expect( marker.is( '$text' ) ).to.be.false;
 			expect( marker.is( 'element', 'paragraph' ) ).to.be.false;
 		} );
 	} );

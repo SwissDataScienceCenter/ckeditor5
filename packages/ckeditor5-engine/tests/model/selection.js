@@ -123,7 +123,7 @@ describe( 'Selection', () => {
 			expectToThrowCKEditorError( () => {
 				// eslint-disable-next-line no-new
 				new Selection( {} );
-			}, /model-selection-setTo-not-selectable/ );
+			}, 'model-selection-setto-not-selectable' );
 		} );
 	} );
 
@@ -142,8 +142,13 @@ describe( 'Selection', () => {
 		it( 'should return false for incorrect values', () => {
 			expect( selection.is( 'model' ) ).to.be.false;
 			expect( selection.is( 'model:node' ) ).to.be.false;
-			expect( selection.is( 'text' ) ).to.be.false;
+			expect( selection.is( '$text' ) ).to.be.false;
+			expect( selection.is( '$textProxy' ) ).to.be.false;
+			expect( selection.is( 'element' ) ).to.be.false;
 			expect( selection.is( 'element', 'paragraph' ) ).to.be.false;
+			expect( selection.is( 'documentSelection' ) ).to.be.false;
+			expect( selection.is( 'node' ) ).to.be.false;
+			expect( selection.is( 'rootElement' ) ).to.be.false;
 		} );
 	} );
 
@@ -302,13 +307,13 @@ describe( 'Selection', () => {
 		it( 'should throw an error when trying to set selection to not selectable', () => {
 			expectToThrowCKEditorError( () => {
 				selection.setTo( {} );
-			}, /model-selection-setTo-not-selectable/ );
+			}, 'model-selection-setto-not-selectable' );
 		} );
 
 		it( 'should throw an error when trying to set selection to not selectable #2', () => {
 			expectToThrowCKEditorError( () => {
 				selection.setTo();
-			}, /model-selection-setTo-not-selectable/ );
+			}, 'model-selection-setto-not-selectable' );
 		} );
 
 		it( 'should allow setting selection inside an element', () => {
@@ -374,7 +379,7 @@ describe( 'Selection', () => {
 			it( 'should throw if second parameter is not passed', () => {
 				expectToThrowCKEditorError( () => {
 					selection.setTo( root );
-				}, /model-selection-setTo-required-second-parameter/, model );
+				}, 'model-selection-setto-required-second-parameter', model );
 			} );
 
 			it( 'should set selection at given offset in given parent', () => {
@@ -460,7 +465,7 @@ describe( 'Selection', () => {
 
 			expectToThrowCKEditorError( () => {
 				selection.setFocus( endPos );
-			}, /model-selection-setFocus-no-ranges/, model );
+			}, 'model-selection-setfocus-no-ranges', model );
 		} );
 
 		it( 'modifies existing collapsed selection', () => {
@@ -826,21 +831,6 @@ describe( 'Selection', () => {
 		} );
 	} );
 
-	describe( 'is()', () => {
-		it( 'should return true for selection', () => {
-			expect( selection.is( 'selection' ) ).to.be.true;
-		} );
-
-		it( 'should return false for other values', () => {
-			expect( selection.is( 'documentSelection' ) ).to.be.false;
-			expect( selection.is( 'node' ) ).to.be.false;
-			expect( selection.is( 'text' ) ).to.be.false;
-			expect( selection.is( 'textProxy' ) ).to.be.false;
-			expect( selection.is( 'element' ) ).to.be.false;
-			expect( selection.is( 'rootElement' ) ).to.be.false;
-		} );
-	} );
-
 	describe( 'setTo - used to collapse at start', () => {
 		it( 'should collapse to start position and fire change event', () => {
 			selection.setTo( [ range2, range1, range3 ] );
@@ -973,7 +963,7 @@ describe( 'Selection', () => {
 
 			model.schema.register( 'table', { isBlock: true, isLimit: true, isObject: true, allowIn: '$root' } );
 			model.schema.register( 'tableRow', { allowIn: 'table', isLimit: true } );
-			model.schema.register( 'tableCell', { allowIn: 'tableRow', isObject: true } );
+			model.schema.register( 'tableCell', { allowIn: 'tableRow', isLimit: true, isSelectable: true } );
 
 			model.schema.extend( 'p', { allowIn: 'tableCell' } );
 		} );
@@ -1376,7 +1366,7 @@ describe( 'Selection', () => {
 			let innerText = '';
 
 			for ( const child of el.getChildren() ) {
-				if ( child.is( 'text' ) ) {
+				if ( child.is( '$text' ) ) {
 					innerText += child.data;
 				}
 			}

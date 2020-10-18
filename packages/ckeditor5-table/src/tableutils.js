@@ -10,7 +10,8 @@
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 
 import TableWalker from './tablewalker';
-import { createEmptyTableCell, updateNumericAttribute } from './commands/utils';
+import { createEmptyTableCell, updateNumericAttribute } from './utils/common';
+import { removeEmptyColumns, removeEmptyRows } from './utils/structure';
 
 /**
  * The table utilities plugin.
@@ -58,7 +59,7 @@ export default class TableUtils extends Plugin {
 
 		const rowIndex = table.getChildIndex( tableRow );
 
-		const tableWalker = new TableWalker( table, { startRow: rowIndex, endRow: rowIndex } );
+		const tableWalker = new TableWalker( table, { row: rowIndex } );
 
 		for ( const { cell, row, column } of tableWalker ) {
 			if ( cell === tableCell ) {
@@ -73,21 +74,35 @@ export default class TableUtils extends Plugin {
 	 *
 	 *		model.change( ( writer ) => {
 	 *			// Create a table of 2 rows and 7 columns:
-	 *			const table = tableUtils.createTable( writer, 2, 7);
+	 *			const table = tableUtils.createTable( writer, { rows: 2, columns: 7 } );
 	 *
 	 *			// Insert a table to the model at the best position taking the current selection:
 	 *			model.insertContent( table );
 	 *		}
 	 *
 	 * @param {module:engine/model/writer~Writer} writer The model writer.
-	 * @param {Number} rows The number of rows to create.
-	 * @param {Number} columns The number of columns to create.
+	 * @param {Object} options
+	 * @param {Number} [options.rows=2] The number of rows to create.
+	 * @param {Number} [options.columns=2] The number of columns to create.
+	 * @param {Number} [options.headingRows=0] The number of heading rows.
+	 * @param {Number} [options.headingColumns=0] The number of heading columns.
 	 * @returns {module:engine/model/element~Element} The created table element.
 	 */
-	createTable( writer, rows, columns ) {
+	createTable( writer, options ) {
 		const table = writer.createElement( 'table' );
 
+		const rows = parseInt( options.rows ) || 2;
+		const columns = parseInt( options.columns ) || 2;
+
 		createEmptyRows( writer, table, 0, rows, columns );
+
+		if ( options.headingRows ) {
+			updateNumericAttribute( 'headingRows', options.headingRows, table, writer, 0 );
+		}
+
+		if ( options.headingColumns ) {
+			updateNumericAttribute( 'headingColumns', options.headingColumns, table, writer, 0 );
+		}
 
 		return table;
 	}
@@ -116,53 +131,80 @@ export default class TableUtils extends Plugin {
 	 * @param {Object} options
 	 * @param {Number} [options.at=0] The row index at which the rows will be inserted.
 	 * @param {Number} [options.rows=1] The number of rows to insert.
+	 * @param {Boolean|undefined} [options.copyStructureFromAbove] The flag for copying row structure. Note that
+	 * the row structure will not be copied if this option is not provided.
 	 */
 	insertRows( table, options = {} ) {
 		const model = this.editor.model;
 
 		const insertAt = options.at || 0;
 		const rowsToInsert = options.rows || 1;
+		const isCopyStructure = options.copyStructureFromAbove !== undefined;
+		const copyStructureFrom = options.copyStructureFromAbove ? insertAt - 1 : insertAt;
+
+		const rows = this.getRows( table );
+		const columns = this.getColumns( table );
 
 		model.change( writer => {
 			const headingRows = table.getAttribute( 'headingRows' ) || 0;
 
 			// Inserting rows inside heading section requires to update `headingRows` attribute as the heading section will grow.
 			if ( headingRows > insertAt ) {
-				writer.setAttribute( 'headingRows', headingRows + rowsToInsert, table );
+				updateNumericAttribute( 'headingRows', headingRows + rowsToInsert, table, writer, 0 );
 			}
 
-			// Inserting at the end and at the beginning of a table doesn't require to calculate anything special.
-			if ( insertAt === 0 || insertAt === table.childCount ) {
-				createEmptyRows( writer, table, insertAt, rowsToInsert, this.getColumns( table ) );
+			// Inserting at the end or at the beginning of a table doesn't require to calculate anything special.
+			if ( !isCopyStructure && ( insertAt === 0 || insertAt === rows ) ) {
+				createEmptyRows( writer, table, insertAt, rowsToInsert, columns );
 
 				return;
 			}
 
-			// Iterate over all rows above inserted rows in order to check for rowspanned cells.
-			const tableIterator = new TableWalker( table, { endRow: insertAt } );
+			// Iterate over all the rows above the inserted rows in order to check for the row-spanned cells.
+			const walkerEndRow = isCopyStructure ? Math.max( insertAt, copyStructureFrom ) : insertAt;
+			const tableIterator = new TableWalker( table, { endRow: walkerEndRow } );
 
-			// Will hold number of cells needed to insert in created rows.
-			// The number might be different then table cell width when there are rowspanned cells.
-			let cellsToInsert = 0;
+			// Store spans of the reference row to reproduce it's structure. This array is column number indexed.
+			const rowColSpansMap = new Array( columns ).fill( 1 );
 
-			for ( const { row, rowspan, colspan, cell } of tableIterator ) {
-				const isBeforeInsertedRow = row < insertAt;
-				const overlapsInsertedRow = row + rowspan > insertAt;
+			for ( const { row, column, cellHeight, cellWidth, cell } of tableIterator ) {
+				const lastCellRow = row + cellHeight - 1;
 
-				if ( isBeforeInsertedRow && overlapsInsertedRow ) {
-					// This cell overlaps inserted rows so we need to expand it further.
-					writer.setAttribute( 'rowspan', rowspan + rowsToInsert, cell );
+				const isOverlappingInsertedRow = row < insertAt && insertAt <= lastCellRow;
+				const isReferenceRow = row <= copyStructureFrom && copyStructureFrom <= lastCellRow;
+
+				// If the cell is row-spanned and overlaps the inserted row, then reserve space for it in the row map.
+				if ( isOverlappingInsertedRow ) {
+					// This cell overlaps the inserted rows so we need to expand it further.
+					writer.setAttribute( 'rowspan', cellHeight + rowsToInsert, cell );
+
+					// Mark this cell with negative number to indicate how many cells should be skipped when adding the new cells.
+					rowColSpansMap[ column ] = -cellWidth;
 				}
-
-				// Calculate how many cells to insert based on the width of cells in a row at insert position.
-				// It might be lower then table width as some cells might overlaps inserted row.
-				// In the table above the cell 'a' overlaps inserted row so only two empty cells are need to be created.
-				if ( row === insertAt ) {
-					cellsToInsert += colspan;
+				// Store the colspan from reference row.
+				else if ( isCopyStructure && isReferenceRow ) {
+					rowColSpansMap[ column ] = cellWidth;
 				}
 			}
 
-			createEmptyRows( writer, table, insertAt, rowsToInsert, cellsToInsert );
+			for ( let rowIndex = 0; rowIndex < rowsToInsert; rowIndex++ ) {
+				const tableRow = writer.createElement( 'tableRow' );
+
+				writer.insert( tableRow, table, insertAt );
+
+				for ( let cellIndex = 0; cellIndex < rowColSpansMap.length; cellIndex++ ) {
+					const colspan = rowColSpansMap[ cellIndex ];
+					const insertPosition = writer.createPositionAt( tableRow, 'end' );
+
+					// Insert the empty cell only if this slot is not row-spanned from any other cell.
+					if ( colspan > 0 ) {
+						createEmptyTableCell( writer, insertPosition, colspan > 1 ? { colspan } : null );
+					}
+
+					// Skip the col-spanned slots, there won't be any cells.
+					cellIndex += Math.abs( colspan ) - 1;
+				}
+			}
 		} );
 	}
 
@@ -217,37 +259,31 @@ export default class TableUtils extends Plugin {
 				return;
 			}
 
-			const tableWalker = new TableWalker( table, { column: insertAt, includeSpanned: true } );
+			const tableWalker = new TableWalker( table, { column: insertAt, includeAllSlots: true } );
 
-			for ( const { row, cell, cellIndex } of tableWalker ) {
+			for ( const tableSlot of tableWalker ) {
+				const { row, cell, cellAnchorColumn, cellAnchorRow, cellWidth, cellHeight } = tableSlot;
+
 				// When iterating over column the table walker outputs either:
 				// - cells at given column index (cell "e" from method docs),
-				// - spanned columns (spanned cell from row between cells "g" and "h" - spanned by "e", only if `includeSpanned: true`),
+				// - spanned columns (spanned cell from row between cells "g" and "h" - spanned by "e", only if `includeAllSlots: true`),
 				// - or a cell from the same row which spans over this column (cell "a").
 
-				const rowspan = parseInt( cell.getAttribute( 'rowspan' ) || 1 );
-				const colspan = parseInt( cell.getAttribute( 'colspan' ) || 1 );
-
-				if ( cellIndex !== insertAt && colspan > 1 ) {
-					// If column is different than `insertAt`, it is a cell that spans over an inserted column (cell "a" & "i").
+				if ( cellAnchorColumn < insertAt ) {
+					// If cell is anchored in previous column, it is a cell that spans over an inserted column (cell "a" & "i").
 					// For such cells expand them by a number of columns inserted.
-					writer.setAttribute( 'colspan', colspan + columnsToInsert, cell );
+					writer.setAttribute( 'colspan', cellWidth + columnsToInsert, cell );
 
-					// The `includeSpanned` option will output the "empty"/spanned column so skip this row already.
-					tableWalker.skipRow( row );
+					// This cell will overlap cells in rows below so skip them (because of `includeAllSlots` option) - (cell "a")
+					const lastCellRow = cellAnchorRow + cellHeight - 1;
 
-					// This cell will overlap cells in rows below so skip them also (because of `includeSpanned` option) - (cell "a")
-					if ( rowspan > 1 ) {
-						for ( let i = row + 1; i < row + rowspan; i++ ) {
-							tableWalker.skipRow( i );
-						}
+					for ( let i = row; i <= lastCellRow; i++ ) {
+						tableWalker.skipRow( i );
 					}
 				} else {
-					// It's either cell at this column index or spanned cell by a rowspanned cell from row above.
+					// It's either cell at this column index or spanned cell by a row-spanned cell from row above.
 					// In table above it's cell "e" and a spanned position from row below (empty cell between cells "g" and "h")
-					const insertPosition = writer.createPositionAt( table.getChild( row ), cellIndex );
-
-					createCells( columnsToInsert, writer, insertPosition );
+					createCells( columnsToInsert, writer, tableSlot.getPositionBefore() );
 				}
 			}
 		} );
@@ -287,19 +323,22 @@ export default class TableUtils extends Plugin {
 		const rowsToRemove = options.rows || 1;
 		const first = options.at;
 		const last = first + rowsToRemove - 1;
-		const batch = options.batch || 'default';
 
-		// Removing rows from table requires most calculations to be done prior to changing table structure.
+		model.change( writer => {
+			// Removing rows from the table require that most calculations to be done prior to changing table structure.
+			// Preparations must be done in the same enqueueChange callback to use the current table structure.
 
-		// 1. Preparation - get row-spanned cells that have to be modified after removing rows.
-		const { cellsToMove, cellsToTrim } = getCellsToMoveAndTrimOnRemoveRow( table, first, last );
+			// 1. Preparation - get row-spanned cells that have to be modified after removing rows.
+			const { cellsToMove, cellsToTrim } = getCellsToMoveAndTrimOnRemoveRow( table, first, last );
 
-		// 2. Execution
-		model.enqueueChange( batch, writer => {
+			// 2. Execution
+
 			// 2a. Move cells from removed rows that extends over a removed section - must be done before removing rows.
 			// This will fill any gaps in a rows below that previously were empty because of row-spanned cells.
-			const rowAfterRemovedSection = last + 1;
-			moveCellsToRow( table, rowAfterRemovedSection, cellsToMove, writer );
+			if ( cellsToMove.size ) {
+				const rowAfterRemovedSection = last + 1;
+				moveCellsToRow( table, rowAfterRemovedSection, cellsToMove, writer );
+			}
 
 			// 2b. Remove all required rows.
 			for ( let i = last; i >= first; i-- ) {
@@ -312,7 +351,14 @@ export default class TableUtils extends Plugin {
 			}
 
 			// 2d. Adjust heading rows if removed rows were in a heading section.
-			updateHeadingRows( table, first, last, model, batch );
+			updateHeadingRows( table, first, last, writer );
+
+			// 2e. Remove empty columns (without anchored cells) if there are any.
+			if ( !removeEmptyColumns( table, this ) ) {
+				// If there wasn't any empty columns then we still need to check if this wasn't called
+				// because of cleaning empty rows and we only removed one of them.
+				removeEmptyRows( table, this );
+			}
 		} );
 	}
 
@@ -355,23 +401,22 @@ export default class TableUtils extends Plugin {
 			adjustHeadingColumns( table, { first, last }, writer );
 
 			for ( let removedColumnIndex = last; removedColumnIndex >= first; removedColumnIndex-- ) {
-				for ( const { cell, column, colspan } of [ ...new TableWalker( table ) ] ) {
+				for ( const { cell, column, cellWidth } of [ ...new TableWalker( table ) ] ) {
 					// If colspaned cell overlaps removed column decrease its span.
-					if ( column <= removedColumnIndex && colspan > 1 && column + colspan > removedColumnIndex ) {
-						updateNumericAttribute( 'colspan', colspan - 1, cell, writer );
+					if ( column <= removedColumnIndex && cellWidth > 1 && column + cellWidth > removedColumnIndex ) {
+						updateNumericAttribute( 'colspan', cellWidth - 1, cell, writer );
 					} else if ( column === removedColumnIndex ) {
-						const cellRow = cell.parent;
-
 						// The cell in removed column has colspan of 1.
 						writer.remove( cell );
-
-						// If the cell was the last one in the row, get rid of the entire row.
-						// https://github.com/ckeditor/ckeditor5/issues/6429
-						if ( !cellRow.childCount ) {
-							this.removeRows( table, { at: cellRow.index } );
-						}
 					}
 				}
+			}
+
+			// Remove empty rows that could appear after removing columns.
+			if ( !removeEmptyRows( table, this ) ) {
+				// If there wasn't any empty rows then we still need to check if this wasn't called
+				// because of cleaning empty columns and we only removed one of them.
+				removeEmptyColumns( table, this );
 			}
 		} );
 	}
@@ -464,16 +509,16 @@ export default class TableUtils extends Plugin {
 				const { column: splitCellColumn } = tableMap.find( ( { cell } ) => cell === tableCell );
 
 				// Find cells which needs to be expanded vertically - those on the same column or those that spans over split cell's column.
-				const cellsToUpdate = tableMap.filter( ( { cell, colspan, column } ) => {
+				const cellsToUpdate = tableMap.filter( ( { cell, cellWidth, column } ) => {
 					const isOnSameColumn = cell !== tableCell && column === splitCellColumn;
-					const spansOverColumn = ( column < splitCellColumn && column + colspan > splitCellColumn );
+					const spansOverColumn = ( column < splitCellColumn && column + cellWidth > splitCellColumn );
 
 					return isOnSameColumn || spansOverColumn;
 				} );
 
 				// Expand cells vertically.
-				for ( const { cell, colspan } of cellsToUpdate ) {
-					writer.setAttribute( 'colspan', colspan + cellsToInsert, cell );
+				for ( const { cell, cellWidth } of cellsToUpdate ) {
+					writer.setAttribute( 'colspan', cellWidth + cellsToInsert, cell );
 				}
 
 				// Second step: create columns after split cell.
@@ -573,7 +618,7 @@ export default class TableUtils extends Plugin {
 				const tableMap = [ ...new TableWalker( table, {
 					startRow: splitCellRow,
 					endRow: splitCellRow + rowspan - 1,
-					includeSpanned: true
+					includeAllSlots: true
 				} ) ];
 
 				// Get spans of new (inserted) cells and span to update of split cell.
@@ -596,7 +641,9 @@ export default class TableUtils extends Plugin {
 					newCellsAttributes.colspan = colspan;
 				}
 
-				for ( const { column, row, cellIndex } of tableMap ) {
+				for ( const tableSlot of tableMap ) {
+					const { column, row } = tableSlot;
+
 					// As both newly created cells and the split cell might have rowspan,
 					// the insertion of new cells must go to appropriate rows:
 					//
@@ -608,9 +655,7 @@ export default class TableUtils extends Plugin {
 					const isInEvenlySplitRow = ( row + splitCellRow + updatedSpan ) % newCellsSpan === 0;
 
 					if ( isAfterSplitCell && isOnSameColumn && isInEvenlySplitRow ) {
-						const position = writer.createPositionAt( table.getChild( row ), cellIndex );
-
-						createCells( 1, writer, position, newCellsAttributes );
+						createCells( 1, writer, tableSlot.getPositionBefore(), newCellsAttributes );
 					}
 				}
 			}
@@ -624,12 +669,12 @@ export default class TableUtils extends Plugin {
 				const tableMap = [ ...new TableWalker( table, { startRow: 0, endRow: splitCellRow } ) ];
 
 				// First step: expand cells.
-				for ( const { cell, rowspan, row } of tableMap ) {
+				for ( const { cell, cellHeight, row } of tableMap ) {
 					// Expand rowspan of cells that are either:
 					// - on the same row as current cell,
 					// - or are below split cell row and overlaps that row.
-					if ( cell !== tableCell && row + rowspan > splitCellRow ) {
-						const rowspanToSet = rowspan + cellsToInsert;
+					if ( cell !== tableCell && row + cellHeight > splitCellRow ) {
+						const rowspanToSet = cellHeight + cellsToInsert;
 
 						writer.setAttribute( 'rowspan', rowspanToSet, cell );
 					}
@@ -752,17 +797,13 @@ function adjustHeadingColumns( table, removedColumnIndexes, writer ) {
 }
 
 // Calculates a new heading rows value for removing rows from heading section.
-function updateHeadingRows( table, first, last, model, batch ) {
+function updateHeadingRows( table, first, last, writer ) {
 	const headingRows = table.getAttribute( 'headingRows' ) || 0;
 
 	if ( first < headingRows ) {
 		const newRows = last < headingRows ? headingRows - ( last - first + 1 ) : first;
 
-		// Must be done after the changes in table structure (removing rows).
-		// Otherwise the downcast converter for headingRows attribute will fail. ckeditor/ckeditor5#6391.
-		model.enqueueChange( batch, writer => {
-			updateNumericAttribute( 'headingRows', newRows, table, writer, 0 );
-		} );
+		updateNumericAttribute( 'headingRows', newRows, table, writer, 0 );
 	}
 }
 
@@ -791,14 +832,14 @@ function getCellsToMoveAndTrimOnRemoveRow( table, first, last ) {
 	const cellsToMove = new Map();
 	const cellsToTrim = [];
 
-	for ( const { row, column, rowspan, cell } of new TableWalker( table, { endRow: last } ) ) {
-		const lastRowOfCell = row + rowspan - 1;
+	for ( const { row, column, cellHeight, cell } of new TableWalker( table, { endRow: last } ) ) {
+		const lastRowOfCell = row + cellHeight - 1;
 
 		const isCellStickingOutFromRemovedRows = row >= first && row <= last && lastRowOfCell > last;
 
 		if ( isCellStickingOutFromRemovedRows ) {
 			const rowspanInRemovedSection = last - row + 1;
-			const rowSpanToSet = rowspan - rowspanInRemovedSection;
+			const rowSpanToSet = cellHeight - rowspanInRemovedSection;
 
 			cellsToMove.set( column, {
 				cell,
@@ -822,7 +863,7 @@ function getCellsToMoveAndTrimOnRemoveRow( table, first, last ) {
 
 			cellsToTrim.push( {
 				cell,
-				rowspan: rowspan - rowspanAdjustment
+				rowspan: cellHeight - rowspanAdjustment
 			} );
 		}
 	}
@@ -831,9 +872,8 @@ function getCellsToMoveAndTrimOnRemoveRow( table, first, last ) {
 
 function moveCellsToRow( table, targetRowIndex, cellsToMove, writer ) {
 	const tableWalker = new TableWalker( table, {
-		includeSpanned: true,
-		startRow: targetRowIndex,
-		endRow: targetRowIndex
+		includeAllSlots: true,
+		row: targetRowIndex
 	} );
 
 	const tableRowMap = [ ...tableWalker ];
@@ -841,7 +881,7 @@ function moveCellsToRow( table, targetRowIndex, cellsToMove, writer ) {
 
 	let previousCell;
 
-	for ( const { column, cell, isSpanned } of tableRowMap ) {
+	for ( const { column, cell, isAnchor } of tableRowMap ) {
 		if ( cellsToMove.has( column ) ) {
 			const { cell: cellToMove, rowspan } = cellsToMove.get( column );
 
@@ -853,7 +893,7 @@ function moveCellsToRow( table, targetRowIndex, cellsToMove, writer ) {
 			updateNumericAttribute( 'rowspan', rowspan, cellToMove, writer );
 
 			previousCell = cellToMove;
-		} else if ( !isSpanned ) {
+		} else if ( isAnchor ) {
 			// If cell is spanned then `cell` holds reference to overlapping cell. See ckeditor/ckeditor5#6502.
 			previousCell = cell;
 		}

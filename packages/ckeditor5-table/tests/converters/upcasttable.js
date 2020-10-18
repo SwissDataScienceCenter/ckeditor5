@@ -3,7 +3,7 @@
  * For licensing, see LICENSE.md or https://ckeditor.com/legal/ckeditor-oss-license
  */
 
-import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtesteditor';
+import ClassicTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/classictesteditor';
 import { getData as getModelData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import ImageEditing from '@ckeditor/ckeditor5-image/src/image/imageediting';
@@ -17,8 +17,8 @@ describe( 'upcastTable()', () => {
 	let editor, model;
 
 	beforeEach( () => {
-		return VirtualTestEditor
-			.create( {
+		return ClassicTestEditor
+			.create( '', {
 				plugins: [ TableEditing, Paragraph, ImageEditing, Widget ]
 			} )
 			.then( newEditor => {
@@ -29,6 +29,10 @@ describe( 'upcastTable()', () => {
 				// so defining model->view converters won't be necessary.
 				editor.editing.destroy();
 			} );
+	} );
+
+	afterEach( () => {
+		editor.destroy();
 	} );
 
 	function expectModel( data ) {
@@ -177,6 +181,32 @@ describe( 'upcastTable()', () => {
 
 		expectModel(
 			'<table><tableRow><tableCell><paragraph></paragraph></tableCell></tableRow></table>'
+		);
+	} );
+
+	it( 'should create valid table model from all empty rows', () => {
+		editor.setData(
+			'<table>' +
+				'<tr></tr>' +
+				'<tr></tr>' +
+			'</table>'
+		);
+
+		expectModel(
+			'<table><tableRow><tableCell><paragraph></paragraph></tableCell></tableRow></table>'
+		);
+	} );
+
+	it( 'should skip empty table rows', () => {
+		editor.setData(
+			'<table>' +
+				'<tr></tr>' +
+				'<tr><td>bar</td></tr>' +
+			'</table>'
+		);
+
+		expectModel(
+			'<table><tableRow><tableCell><paragraph>bar</paragraph></tableCell></tableRow></table>'
 		);
 	} );
 
@@ -466,6 +496,48 @@ describe( 'upcastTable()', () => {
 
 			expectModel( modelTable( [
 				[ '<image src="sample.png"></image>' ]
+			] ) );
+		} );
+	} );
+
+	describe( 'inline contents', () => {
+		it( 'should upcast inline element inside a table cell', () => {
+			model.schema.register( 'inline', { allowWhere: '$text', isInline: true } );
+			model.schema.extend( '$text', { allowIn: 'inline' } );
+			editor.conversion.elementToElement( { model: 'inline', view: 'span' } );
+
+			editor.setData(
+				'<table>' +
+					'<tr>' +
+						'<td>' +
+							'<span>foo</span>' +
+						'</td>' +
+					'</tr>' +
+				'</table>'
+			);
+
+			expectModel( modelTable( [
+				[ '<paragraph><inline>foo</inline></paragraph>' ]
+			] ) );
+		} );
+
+		it( 'should upcast inline object inside a table cell', () => {
+			model.schema.register( 'inline', { allowWhere: '$text', isInline: true, isObject: true } );
+			model.schema.extend( '$text', { allowIn: 'inline' } );
+			editor.conversion.elementToElement( { model: 'inline', view: 'span' } );
+
+			editor.setData(
+				'<table>' +
+					'<tr>' +
+						'<td>' +
+							'<span>foo</span>' +
+						'</td>' +
+					'</tr>' +
+				'</table>'
+			);
+
+			expectModel( modelTable( [
+				[ '<paragraph><inline>foo</inline></paragraph>' ]
 			] ) );
 		} );
 	} );

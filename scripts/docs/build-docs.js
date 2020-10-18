@@ -17,7 +17,7 @@ const skipValidation = process.argv.includes( '--skip-validation' );
 const production = process.argv.includes( '--production' );
 const watch = process.argv.includes( '--watch' );
 const verbose = process.argv.includes( '--verbose' );
-const whitelistedSnippets = process.argv.find( item => item.startsWith( '--snippets=' ) );
+const allowedSnippets = process.argv.find( item => item.startsWith( '--snippets=' ) );
 
 buildDocs();
 
@@ -27,12 +27,7 @@ function buildDocs() {
 	if ( skipApi ) {
 		promise = Promise.resolve();
 	} else {
-		promise = buildApiDocs()
-			.catch( err => {
-				console.error( err );
-
-				process.exitCode = 1;
-			} );
+		promise = buildApiDocs();
 	}
 
 	promise
@@ -45,6 +40,11 @@ function buildDocs() {
 				watch,
 				verbose
 			} );
+		} )
+		.catch( err => {
+			console.error( err );
+
+			process.exitCode = 1;
 		} );
 }
 
@@ -59,7 +59,7 @@ function runUmberto( options ) {
 		skipValidation: options.skipValidation,
 		snippetOptions: {
 			production: options.production,
-			whitelistedSnippets: whitelistedSnippets ? whitelistedSnippets.replace( '--snippets=', '' ).split( ',' ) : []
+			allowedSnippets: allowedSnippets ? allowedSnippets.replace( '--snippets=', '' ).split( ',' ) : []
 		},
 		skipApi: options.skipApi,
 		verbose: options.verbose,

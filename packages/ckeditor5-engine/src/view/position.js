@@ -59,7 +59,7 @@ export default class Position {
 	 * @type {module:engine/view/node~Node|null}
 	 */
 	get nodeAfter() {
-		if ( this.parent.is( 'text' ) ) {
+		if ( this.parent.is( '$text' ) ) {
 			return null;
 		}
 
@@ -74,7 +74,7 @@ export default class Position {
 	 * @type {module:engine/view/node~Node|null}
 	 */
 	get nodeBefore() {
-		if ( this.parent.is( 'text' ) ) {
+		if ( this.parent.is( '$text' ) ) {
 			return null;
 		}
 
@@ -98,7 +98,7 @@ export default class Position {
 	 * @type {Boolean}
 	 */
 	get isAtEnd() {
-		const endOffset = this.parent.is( 'text' ) ? this.parent.data.length : this.parent.childCount;
+		const endOffset = this.parent.is( '$text' ) ? this.parent.data.length : this.parent.childCount;
 
 		return this.offset === endOffset;
 	}
@@ -346,7 +346,7 @@ export default class Position {
 			const node = itemOrPosition;
 
 			if ( offset == 'end' ) {
-				offset = node.is( 'text' ) ? node.data.length : node.childCount;
+				offset = node.is( '$text' ) ? node.data.length : node.childCount;
 			} else if ( offset == 'before' ) {
 				return this._createBefore( node );
 			} else if ( offset == 'after' ) {
@@ -356,13 +356,9 @@ export default class Position {
 				 * {@link module:engine/view/view~View#createPositionAt `View#createPositionAt()`}
 				 * requires the offset to be specified when the first parameter is a view item.
 				 *
-				 * @error view-createPositionAt-offset-required
+				 * @error view-createpositionat-offset-required
 				 */
-				throw new CKEditorError(
-					'view-createPositionAt-offset-required: ' +
-					'View#createPositionAt() requires the offset when the first parameter is a view item.',
-					node
-				);
+				throw new CKEditorError( 'view-createpositionat-offset-required', node );
 			}
 
 			return new Position( node, offset );
@@ -378,7 +374,7 @@ export default class Position {
 	 */
 	static _createAfter( item ) {
 		// TextProxy is not a instance of Node so we need do handle it in specific way.
-		if ( item.is( 'textProxy' ) ) {
+		if ( item.is( '$textProxy' ) ) {
 			return new Position( item.textNode, item.offsetInText + item.data.length );
 		}
 
@@ -389,7 +385,7 @@ export default class Position {
 			 * @error view-position-after-root
 			 * @param {module:engine/view/node~Node} root
 			 */
-			throw new CKEditorError( 'view-position-after-root: You can not make position after root.', item, { root: item } );
+			throw new CKEditorError( 'view-position-after-root', item, { root: item } );
 		}
 
 		return new Position( item.parent, item.index + 1 );
@@ -404,7 +400,7 @@ export default class Position {
 	 */
 	static _createBefore( item ) {
 		// TextProxy is not a instance of Node so we need do handle it in specific way.
-		if ( item.is( 'textProxy' ) ) {
+		if ( item.is( '$textProxy' ) ) {
 			return new Position( item.textNode, item.offsetInText );
 		}
 
@@ -415,7 +411,7 @@ export default class Position {
 			 * @error view-position-before-root
 			 * @param {module:engine/view/node~Node} root
 			 */
-			throw new CKEditorError( 'view-position-before-root: You can not make position before root.', item, { root: item } );
+			throw new CKEditorError( 'view-position-before-root', item, { root: item } );
 		}
 
 		return new Position( item.parent, item.index );

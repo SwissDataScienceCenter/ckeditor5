@@ -9,8 +9,13 @@
 
 import HighlightStack from './highlightstack';
 import IconView from '@ckeditor/ckeditor5-ui/src/icon/iconview';
+import Rect from '@ckeditor/ckeditor5-utils/src/dom/rect';
+import BalloonPanelView from '@ckeditor/ckeditor5-ui/src/panel/balloon/balloonpanelview';
+import global from '@ckeditor/ckeditor5-utils/src/dom/global';
+import CKEditorError from '@ckeditor/ckeditor5-utils/src/ckeditorerror';
 
 import dragHandleIcon from '../theme/icons/drag-handle.svg';
+import { getTypeAroundFakeCaretPosition } from './widgettypearound/utils';
 
 /**
  * CSS class added to each widget element.
@@ -40,11 +45,10 @@ export function isWidget( node ) {
 	return !!node.getCustomProperty( 'widget' );
 }
 
-/* eslint-disable max-len */
 /**
  * Converts the given {@link module:engine/view/element~Element} to a widget in the following way:
  *
- * * sets the `contenteditable` attribute to `"true"`,
+ * * sets the `contenteditable` attribute to `"false"`,
  * * adds the `ck-widget` CSS class,
  * * adds a custom {@link module:engine/view/element~Element#getFillerOffset `getFillerOffset()`} method returning `null`,
  * * adds a custom property allowing to recognize widget elements by using {@link ~isWidget `isWidget()`},
@@ -61,7 +65,7 @@ export function isWidget( node ) {
  *		editor.conversion.for( 'editingDowncast' )
  *			.elementToElement( {
  *				model: 'widget',
- *				view: ( modelItem, writer ) => {
+ *				view: ( modelItem, { writer } ) => {
  *					const div = writer.createContainerElement( 'div', { class: 'widget' } );
  *
  *					return toWidget( div, writer, { label: 'some widget' } );
@@ -71,7 +75,7 @@ export function isWidget( node ) {
  *		editor.conversion.for( 'dataDowncast' )
  *			.elementToElement( {
  *				model: 'widget',
- *				view: ( modelItem, writer ) => {
+ *				view: ( modelItem, { writer } ) => {
  *					return writer.createContainerElement( 'div', { class: 'widget' } );
  *				}
  *			} );
@@ -87,8 +91,22 @@ export function isWidget( node ) {
  * @param {Boolean} [options.hasSelectionHandle=false] If `true`, the widget will have a selection handle added.
  * @returns {module:engine/view/element~Element} Returns the same element.
  */
-/* eslint-enable max-len */
 export function toWidget( element, writer, options = {} ) {
+	if ( !element.is( 'containerElement' ) ) {
+		/**
+		 * The element passed to `toWidget()` must be a {@link module:engine/view/containerelement~ContainerElement}
+		 * instance.
+		 *
+		 * @error widget-to-widget-wrong-element-type
+		 * @param {String} element The view element passed to `toWidget()`.
+		 */
+		throw new CKEditorError(
+			'widget-to-widget-wrong-element-type',
+			null,
+			{ element }
+		);
+	}
+
 	writer.setAttribute( 'contenteditable', 'false', element );
 
 	writer.addClass( WIDGET_CLASS_NAME, element );
@@ -181,7 +199,7 @@ export function getLabel( element ) {
  * * adds the `ck-editor__editable` and `ck-editor__nested-editable` CSS classes,
  * * adds the `ck-editor__nested-editable_focused` CSS class when the editable is focused and removes it when it is blurred.
  *
- * Similarly to {@link ~toWidget `toWidget()`} this function should be used in `dataDowncast` only and it is usually
+ * Similarly to {@link ~toWidget `toWidget()`} this function should be used in `editingDowncast` only and it is usually
  * used together with {@link module:engine/conversion/downcasthelpers~DowncastHelpers#elementToElement `elementToElement()`}.
  *
  * For example, in order to convert a `<nested>` model element to `<div class="nested">` in the view, you can define
@@ -190,7 +208,7 @@ export function getLabel( element ) {
  *		editor.conversion.for( 'editingDowncast' )
  *			.elementToElement( {
  *				model: 'nested',
- *				view: ( modelItem, writer ) => {
+ *				view: ( modelItem, { writer } ) => {
  *					const div = writer.createEditableElement( 'div', { class: 'nested' } );
  *
  *					return toWidgetEditable( nested, writer );
@@ -200,7 +218,7 @@ export function getLabel( element ) {
  *		editor.conversion.for( 'dataDowncast' )
  *			.elementToElement( {
  *				model: 'nested',
- *				view: ( modelItem, writer ) => {
+ *				view: ( modelItem, { writer } ) => {
  *					return writer.createContainerElement( 'div', { class: 'nested' } );
  *				}
  *			} );
@@ -253,8 +271,18 @@ export function toWidgetEditable( editable, writer ) {
 export function findOptimalInsertionPosition( selection, model ) {
 	const selectedElement = selection.getSelectedElement();
 
-	if ( selectedElement && model.schema.isBlock( selectedElement ) ) {
-		return model.createPositionAfter( selectedElement );
+	if ( selectedElement ) {
+		const typeAroundFakeCaretPosition = getTypeAroundFakeCaretPosition( selection );
+
+		// If the WidgetTypeAround "fake caret" is displayed, use its position for the insertion
+		// to provide the most predictable UX (https://github.com/ckeditor/ckeditor5/issues/7438).
+		if ( typeAroundFakeCaretPosition ) {
+			return model.createPositionAt( selectedElement, typeAroundFakeCaretPosition );
+		}
+
+		if ( model.schema.isBlock( selectedElement ) ) {
+			return model.createPositionAfter( selectedElement );
+		}
 	}
 
 	const firstBlock = selection.getSelectedBlocks().next().value;
@@ -336,6 +364,65 @@ export function viewToModelPositionOutsideModelElement( model, viewElementMatche
 		const modelParent = mapper.toModelElement( viewParent );
 
 		data.modelPosition = model.createPositionAt( modelParent, viewPosition.isAtStart ? 'before' : 'after' );
+	};
+}
+
+/**
+ * A positioning function passed to the {@link module:utils/dom/position~getOptimalPosition} helper as a last resort
+ * when attaching {@link  module:ui/panel/balloon/balloonpanelview~BalloonPanelView balloon UI} to widgets.
+ * It comes in handy when a widget is longer than the visual viewport of the web browser and/or upper/lower boundaries
+ * of a widget are off screen because of the web page scroll.
+ *
+ *	                                       ┌─┄┄┄┄┄┄┄┄┄Widget┄┄┄┄┄┄┄┄┄┐
+ *	                                       ┊                         ┊
+ *	┌────────────Viewport───────────┐   ┌──╁─────────Viewport────────╁──┐
+ *	│  ┏━━━━━━━━━━Widget━━━━━━━━━┓  │   │  ┃            ^            ┃  │
+ *	│  ┃            ^            ┃  │   │  ┃   ╭───────/ \───────╮   ┃  │
+ *	│  ┃   ╭───────/ \───────╮   ┃  │   │  ┃   │     Balloon     │   ┃  │
+ *	│  ┃   │     Balloon     │   ┃  │   │  ┃   ╰─────────────────╯   ┃  │
+ *	│  ┃   ╰─────────────────╯   ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	│  ┃                         ┃  │   │  ┃                         ┃  │
+ *	└──╀─────────────────────────╀──┘   └──╀─────────────────────────╀──┘
+ *	   ┊                         ┊         ┊                         ┊
+ *	   ┊                         ┊         └┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘
+ *	   ┊                         ┊
+ *	   └┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘
+ *
+ * **Note**: Works best if used together with
+ * {@link module:ui/panel/balloon/balloonpanelview~BalloonPanelView.defaultPositions default `BalloonPanelView` positions}
+ * like `northArrowSouth` and `southArrowNorth`; the transition between these two and this position is smooth.
+ *
+ * @param {module:utils/dom/rect~Rect} widgetRect A rect of the widget.
+ * @param {module:utils/dom/rect~Rect} balloonRect A rect of the balloon.
+ * @returns {module:utils/dom/position~Position|null}
+ */
+export function centeredBalloonPositionForLongWidgets( widgetRect, balloonRect ) {
+	const viewportRect = new Rect( global.window );
+	const viewportWidgetInsersectionRect = viewportRect.getIntersection( widgetRect );
+
+	const balloonTotalHeight = balloonRect.height + BalloonPanelView.arrowVerticalOffset;
+
+	// If there is enough space above or below the widget then this position should not be used.
+	if ( widgetRect.top - balloonTotalHeight > viewportRect.top || widgetRect.bottom + balloonTotalHeight < viewportRect.bottom ) {
+		return null;
+	}
+
+	// Because this is a last resort positioning, to keep things simple we're not playing with positions of the arrow
+	// like, for instance, "south west" or whatever. Just try to keep the balloon in the middle of the visible area of
+	// the widget for as long as it is possible. If the widgets becomes invisible (because cropped by the viewport),
+	// just... place the balloon in the middle of it (because why not?).
+	const targetRect = viewportWidgetInsersectionRect || widgetRect;
+	const left = targetRect.left + targetRect.width / 2 - balloonRect.width / 2;
+
+	return {
+		top: Math.max( widgetRect.top, 0 ) + BalloonPanelView.arrowVerticalOffset,
+		left,
+		name: 'arrow_n'
 	};
 }
 

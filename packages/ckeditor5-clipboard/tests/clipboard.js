@@ -112,7 +112,7 @@ describe( 'Clipboard feature', () => {
 				clipboardPlugin.on( 'inputTransformation', ( evt, data ) => {
 					expect( data.content ).is.instanceOf( ViewDocumentFragment );
 					expect( data.dataTransfer ).to.equal( dataTransferMock );
-					expect( stringifyView( data.content ) ).to.equal( '<p>x</p><p></p><p>y  z</p>' );
+					expect( stringifyView( data.content ) ).to.equal( '<p>x</p><p>y  z</p>' );
 
 					done();
 				} );
@@ -341,6 +341,209 @@ describe( 'Clipboard feature', () => {
 			} );
 
 			expect( spy.callCount ).to.equal( 1 );
+		} );
+
+		// https://github.com/ckeditor/ckeditor5/issues/1006
+		describe( 'pasting plain text', () => {
+			let model;
+
+			beforeEach( () => {
+				model = editor.model;
+
+				model.schema.extend( '$text', { allowAttributes: 'bold' } );
+				model.schema.extend( '$text', { allowAttributes: 'test' } );
+
+				editor.model.schema.setAttributeProperties( 'bold', { isFormatting: true } );
+
+				model.schema.register( 'softBreak', {
+					allowWhere: '$text',
+					isInline: true
+				} );
+				editor.conversion.for( 'upcast' )
+					.elementToElement( {
+						model: 'softBreak',
+						view: 'br'
+					} );
+			} );
+
+			it( 'should inherit selection attributes (collapsed selection)', () => {
+				const insertContent = model.insertContent.bind( model );
+				let insertedNode;
+
+				sinon.stub( model, 'insertContent' ).callsFake( documentFragment => {
+					insertedNode = documentFragment.getChild( 0 );
+
+					return insertContent( documentFragment );
+				} );
+
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( { 'text/plain': 'foo' } );
+
+				viewDocument.fire( 'paste', {
+					dataTransfer: dataTransferMock,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]text.</$text></paragraph>' );
+				expect( insertedNode.getAttribute( 'bold' ) ).to.equal( true );
+			} );
+
+			it( 'should inherit selection attributes (non-collapsed selection)', () => {
+				const insertContent = model.insertContent.bind( model );
+				let insertedNode;
+
+				sinon.stub( model, 'insertContent' ).callsFake( documentFragment => {
+					insertedNode = documentFragment.getChild( 0 );
+
+					return insertContent( documentFragment );
+				} );
+
+				setModelData( model, '<paragraph><$text bold="true">Bolded [text.]</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( { 'text/plain': 'foo' } );
+
+				viewDocument.fire( 'paste', {
+					dataTransfer: dataTransferMock,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]</$text></paragraph>' );
+				expect( insertedNode.getAttribute( 'bold' ) ).to.equal( true );
+			} );
+
+			it( 'should inherit selection attributes while pasting a plain text as text/html', () => {
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': 'foo',
+					'text/plain': 'foo'
+				} );
+
+				viewDocument.fire( 'paste', {
+					dataTransfer: dataTransferMock,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]text.</$text></paragraph>' );
+			} );
+
+			it( 'should inherit selection attributes while pasting a plain text as text/html (Chrome style)', () => {
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': '<meta http-equiv="content-type" content="text/html; charset=utf-8">foo',
+					'text/plain': 'foo'
+				} );
+
+				viewDocument.fire( 'paste', {
+					dataTransfer: dataTransferMock,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]text.</$text></paragraph>' );
+			} );
+
+			it( 'should inherit selection attributes while pasting HTML with unsupported attributes', () => {
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': '<i>foo</i>',
+					'text/plain': 'foo'
+				} );
+
+				viewDocument.fire( 'paste', {
+					dataTransfer: dataTransferMock,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]text.</$text></paragraph>' );
+			} );
+
+			it( 'should inherit selection attributes with data.asPlainText switch set', () => {
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': 'foo',
+					'text/plain': 'foo'
+				} );
+
+				viewDocument.fire( 'clipboardInput', {
+					dataTransfer: dataTransferMock,
+					asPlainText: true,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded foo[]text.</$text></paragraph>' );
+			} );
+
+			it( 'should discard selection attributes with data.asPlainText switch set to false', () => {
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': 'foo<br>bar',
+					'text/plain': 'foo\nbar'
+				} );
+
+				viewDocument.fire( 'clipboardInput', {
+					dataTransfer: dataTransferMock,
+					asPlainText: false,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded </$text>' +
+					'foo<softBreak></softBreak>bar[]' +
+					'<$text bold="true">text.</$text></paragraph>' );
+			} );
+
+			it( 'should work if the insertContent event is cancelled', () => {
+				// (#7887).
+				setModelData( model, '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': 'foo',
+					'text/plain': 'foo'
+				} );
+
+				model.on( 'insertContent', event => {
+					event.stop();
+				}, { priority: 'high' } );
+
+				viewDocument.fire( 'clipboardInput', {
+					dataTransfer: dataTransferMock,
+					asPlainText: false,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal( '<paragraph><$text bold="true">Bolded []text.</$text></paragraph>' );
+			} );
+
+			it( 'ignores non-formatting text attributes', () => {
+				setModelData( model, '<paragraph><$text test="true">Bolded []text.</$text></paragraph>' );
+
+				const dataTransferMock = createDataTransfer( {
+					'text/html': 'foo',
+					'text/plain': 'foo'
+				} );
+
+				viewDocument.fire( 'clipboardInput', {
+					dataTransfer: dataTransferMock,
+					asPlainText: false,
+					stopPropagation() {},
+					preventDefault() {}
+				} );
+
+				expect( getModelData( model ) ).to.equal(
+					'<paragraph><$text test="true">Bolded </$text>foo[]<$text test="true">text.</$text></paragraph>' );
+			} );
 		} );
 
 		function createDataTransfer( data ) {

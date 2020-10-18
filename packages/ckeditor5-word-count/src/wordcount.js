@@ -20,7 +20,7 @@ import env from '@ckeditor/ckeditor5-utils/src/env';
  * This plugin calculates all words and characters in all {@link module:engine/model/text~Text text nodes} available in the model.
  * It also provides an HTML element that updates its state whenever the editor content is changed.
  *
- * The model's data is first converted to plain text using {@link module:word-count/utils.modelElementToPlainText}.
+ * The model's data is first converted to plain text using {@link module:word-count/utils~modelElementToPlainText}.
  * The number of words and characters in your text are determined based on the created plain text. Please keep in mind
  * that every block in the editor is separated with a newline character, which is included in the calculation.
  *
@@ -120,7 +120,7 @@ export default class WordCount extends Plugin {
 		 * @readonly
 		 * @type {module:ui/view~View}
 		 */
-		this._outputView;
+		this._outputView = undefined;
 
 		/**
 		 * A regular expression used to recognize words in the editor's content.
@@ -203,7 +203,7 @@ export default class WordCount extends Plugin {
 
 			if ( displayWords || displayWords === undefined ) {
 				this.bind( '_wordsLabel' ).to( this, 'words', words => {
-					return t( 'Words: %0', [ words ] );
+					return t( 'Words: %0', words );
 				} );
 
 				children.push( {
@@ -221,7 +221,7 @@ export default class WordCount extends Plugin {
 
 			if ( displayCharacters || displayCharacters === undefined ) {
 				this.bind( '_charactersLabel' ).to( this, 'characters', words => {
-					return t( 'Characters: %0', [ words ] );
+					return t( 'Characters: %0', words );
 				} );
 
 				children.push( {

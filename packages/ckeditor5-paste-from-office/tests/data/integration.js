@@ -15,9 +15,14 @@ import Strikethrough from '@ckeditor/ckeditor5-basic-styles/src/strikethrough';
 import List from '@ckeditor/ckeditor5-list/src/list';
 import Image from '@ckeditor/ckeditor5-image/src/image';
 import Table from '@ckeditor/ckeditor5-table/src/table';
+import TableProperties from '@ckeditor/ckeditor5-table/src/tableproperties';
+import TableCellProperties from '@ckeditor/ckeditor5-table/src/tablecellproperties';
+import FontBackgroundColor from '@ckeditor/ckeditor5-font/src/fontbackgroundcolor';
+import FontColor from '@ckeditor/ckeditor5-font/src/fontcolor';
 
 import PasteFromOffice from '../../src/pastefromoffice';
 import { generateTests } from '../_utils/utils';
+import PageBreak from '@ckeditor/ckeditor5-page-break/src/pagebreak';
 
 const browsers = [ 'chrome', 'firefox', 'safari', 'edge' ];
 
@@ -106,6 +111,35 @@ describe( 'PasteFromOffice - integration', () => {
 		browsers,
 		editorConfig: {
 			plugins: [ Clipboard, Paragraph, List, Table, Bold, PasteFromOffice ]
+		}
+	} );
+
+	generateTests( {
+		input: 'table',
+		type: 'integration',
+		browsers,
+		editorConfig: {
+			plugins: [ Clipboard, Paragraph, Table, TableProperties, TableCellProperties, Bold, PasteFromOffice,
+				FontColor, FontBackgroundColor ]
+		}
+	} );
+
+	// See: https://github.com/ckeditor/ckeditor5/issues/7684.
+	generateTests( {
+		input: 'font-without-table-properties',
+		type: 'integration',
+		browsers,
+		editorConfig: {
+			plugins: [ Clipboard, Paragraph, Table, Bold, PasteFromOffice, FontColor, FontBackgroundColor ]
+		}
+	} );
+
+	generateTests( {
+		input: 'page-break',
+		type: 'integration',
+		browsers,
+		editorConfig: {
+			plugins: [ Clipboard, Paragraph, Bold, PasteFromOffice, PageBreak ]
 		}
 	} );
 } );

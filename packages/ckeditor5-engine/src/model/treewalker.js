@@ -48,7 +48,7 @@ export default class TreeWalker {
 			 * @error model-tree-walker-no-start-position
 			 */
 			throw new CKEditorError(
-				'model-tree-walker-no-start-position: Neither boundaries nor starting position have been defined.',
+				'model-tree-walker-no-start-position',
 				null
 			);
 		}
@@ -56,11 +56,12 @@ export default class TreeWalker {
 		const direction = options.direction || 'forward';
 
 		if ( direction != 'forward' && direction != 'backward' ) {
-			throw new CKEditorError(
-				'model-tree-walker-unknown-direction: Only `backward` and `forward` direction allowed.',
-				options,
-				{ direction }
-			);
+			/**
+			 * Only `backward` and `forward` direction allowed.
+			 *
+			 * @error model-tree-walker-unknown-direction
+			 */
+			throw new CKEditorError( 'model-tree-walker-unknown-direction', options, { direction } );
 		}
 
 		/**
@@ -410,5 +411,5 @@ function formatReturnValue( type, item, previousPosition, nextPosition, length )
 /**
  * Tree walking directions.
  *
- * @typedef {'forward'|'backward'} module:engine/view/treewalker~TreeWalkerDirection
+ * @typedef {'forward'|'backward'} module:engine/model/treewalker~TreeWalkerDirection
  */

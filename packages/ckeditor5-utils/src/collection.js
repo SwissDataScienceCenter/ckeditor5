@@ -179,35 +179,60 @@ export default class Collection {
 	 * @param {Number} [index] The position of the item in the collection. The item
 	 * is pushed to the collection when `index` not specified.
 	 * @fires add
+	 * @fires change
 	 */
 	add( item, index ) {
-		const itemId = this._getItemIdBeforeAdding( item );
+		return this.addMany( [ item ], index );
+	}
 
-		// TODO: Use ES6 default function argument.
+	/**
+	 * Adds multiple items into the collection.
+	 *
+	 * Any item not containing an id will get an automatically generated one.
+	 *
+	 * @chainable
+	 * @param {Iterable.<Object>} item
+	 * @param {Number} [index] The position of the insertion. Items will be appended if no `index` is specified.
+	 * @fires add
+	 * @fires change
+	 */
+	addMany( items, index ) {
 		if ( index === undefined ) {
 			index = this._items.length;
 		} else if ( index > this._items.length || index < 0 ) {
 			/**
-			 * The index number has invalid value.
+			 * The `index` passed to {@link module:utils/collection~Collection#addMany `Collection#addMany()`}
+			 * is invalid. It must be a number between 0 and the collection's length.
 			 *
-			 * @error collection-add-item-bad-index
+			 * @error collection-add-item-invalid-index
 			 */
 			throw new CKEditorError( 'collection-add-item-invalid-index', this );
 		}
 
-		this._items.splice( index, 0, item );
+		for ( let offset = 0; offset < items.length; offset++ ) {
+			const item = items[ offset ];
+			const itemId = this._getItemIdBeforeAdding( item );
+			const currentItemIndex = index + offset;
 
-		this._itemMap.set( itemId, item );
+			this._items.splice( currentItemIndex, 0, item );
+			this._itemMap.set( itemId, item );
 
-		this.fire( 'add', item, index );
+			this.fire( 'add', item, currentItemIndex );
+		}
+
+		this.fire( 'change', {
+			added: items,
+			removed: [],
+			index
+		} );
 
 		return this;
 	}
 
 	/**
-	 * Gets item by its id or index.
+	 * Gets an item by its ID or index.
 	 *
-	 * @param {String|Number} idOrIndex The item id or index in the collection.
+	 * @param {String|Number} idOrIndex The item ID or index in the collection.
 	 * @returns {Object|null} The requested item or `null` if such item does not exist.
 	 */
 	get( idOrIndex ) {
@@ -219,20 +244,20 @@ export default class Collection {
 			item = this._items[ idOrIndex ];
 		} else {
 			/**
-			 * Index or id must be given.
+			 * An index or ID must be given.
 			 *
 			 * @error collection-get-invalid-arg
 			 */
-			throw new CKEditorError( 'collection-get-invalid-arg: Index or id must be given.', this );
+			throw new CKEditorError( 'collection-get-invalid-arg', this );
 		}
 
 		return item || null;
 	}
 
 	/**
-	 * Returns a boolean indicating whether the collection contains an item.
+	 * Returns a Boolean indicating whether the collection contains an item.
 	 *
-	 * @param {Object|String} itemOrId The item or its id in the collection.
+	 * @param {Object|String} itemOrId The item or its ID in the collection.
 	 * @returns {Boolean} `true` if the collection contains the item, `false` otherwise.
 	 */
 	has( itemOrId ) {
@@ -247,11 +272,11 @@ export default class Collection {
 	}
 
 	/**
-	 * Gets index of item in the collection.
-	 * When item is not defined in the collection then index will be equal -1.
+	 * Gets an index of an item in the collection.
+	 * When an item is not defined in the collection, the index will equal -1.
 	 *
-	 * @param {Object|String} itemOrId The item or its id in the collection.
-	 * @returns {Number} Index of given item.
+	 * @param {Object|String} itemOrId The item or its ID in the collection.
+	 * @returns {Number} The index of a given item.
 	 */
 	getIndex( itemOrId ) {
 		let item;
@@ -268,55 +293,19 @@ export default class Collection {
 	/**
 	 * Removes an item from the collection.
 	 *
-	 * @param {Object|Number|String} subject The item to remove, its id or index in the collection.
+	 * @param {Object|Number|String} subject The item to remove, its ID or index in the collection.
 	 * @returns {Object} The removed item.
 	 * @fires remove
+	 * @fires change
 	 */
 	remove( subject ) {
-		let index, id, item;
-		let itemDoesNotExist = false;
-		const idProperty = this._idProperty;
+		const [ item, index ] = this._remove( subject );
 
-		if ( typeof subject == 'string' ) {
-			id = subject;
-			item = this._itemMap.get( id );
-			itemDoesNotExist = !item;
-
-			if ( item ) {
-				index = this._items.indexOf( item );
-			}
-		} else if ( typeof subject == 'number' ) {
-			index = subject;
-			item = this._items[ index ];
-			itemDoesNotExist = !item;
-
-			if ( item ) {
-				id = item[ idProperty ];
-			}
-		} else {
-			item = subject;
-			id = item[ idProperty ];
-			index = this._items.indexOf( item );
-			itemDoesNotExist = ( index == -1 || !this._itemMap.get( id ) );
-		}
-
-		if ( itemDoesNotExist ) {
-			/**
-			 * Item not found.
-			 *
-			 * @error collection-remove-404
-			 */
-			throw new CKEditorError( 'collection-remove-404: Item not found.', this );
-		}
-
-		this._items.splice( index, 1 );
-		this._itemMap.delete( id );
-
-		const externalItem = this._bindToInternalToExternalMap.get( item );
-		this._bindToInternalToExternalMap.delete( item );
-		this._bindToExternalToInternalMap.delete( externalItem );
-
-		this.fire( 'remove', item, index );
+		this.fire( 'change', {
+			added: [],
+			removed: [ item ],
+			index
+		} );
 
 		return item;
 	}
@@ -363,6 +352,9 @@ export default class Collection {
 	/**
 	 * Removes all items from the collection and destroys the binding created using
 	 * {@link #bindTo}.
+	 *
+	 * @fires remove
+	 * @fires change
 	 */
 	clear() {
 		if ( this._bindToCollection ) {
@@ -370,9 +362,17 @@ export default class Collection {
 			this._bindToCollection = null;
 		}
 
+		const removedItems = Array.from( this._items );
+
 		while ( this.length ) {
-			this.remove( 0 );
+			this._remove( 0 );
 		}
+
+		this.fire( 'change', {
+			added: [],
+			removed: removedItems,
+			index: 0
+		} );
 	}
 
 	/**
@@ -479,7 +479,7 @@ export default class Collection {
 			 *
 			 * @error collection-bind-to-rebind
 			 */
-			throw new CKEditorError( 'collection-bind-to-rebind: The collection cannot be bound more than once.', this );
+			throw new CKEditorError( 'collection-bind-to-rebind', this );
 		}
 
 		this._bindToCollection = externalCollection;
@@ -642,7 +642,7 @@ export default class Collection {
 
 			if ( typeof itemId != 'string' ) {
 				/**
-				 * This item's id should be a string.
+				 * This item's ID should be a string.
 				 *
 				 * @error collection-add-invalid-id
 				 */
@@ -665,6 +665,65 @@ export default class Collection {
 	}
 
 	/**
+	 * Core {@link #remove} method implementation shared in other functions.
+	 *
+	 * In contrast this method **does not** fire the {@link #event:change} event.
+	 *
+	 * @private
+	 * @param {Object} subject The item to remove, its id or index in the collection.
+	 * @returns {Array} Returns an array with the removed item and its index.
+	 * @fires remove
+	 */
+	_remove( subject ) {
+		let index, id, item;
+		let itemDoesNotExist = false;
+		const idProperty = this._idProperty;
+
+		if ( typeof subject == 'string' ) {
+			id = subject;
+			item = this._itemMap.get( id );
+			itemDoesNotExist = !item;
+
+			if ( item ) {
+				index = this._items.indexOf( item );
+			}
+		} else if ( typeof subject == 'number' ) {
+			index = subject;
+			item = this._items[ index ];
+			itemDoesNotExist = !item;
+
+			if ( item ) {
+				id = item[ idProperty ];
+			}
+		} else {
+			item = subject;
+			id = item[ idProperty ];
+			index = this._items.indexOf( item );
+			itemDoesNotExist = ( index == -1 || !this._itemMap.get( id ) );
+		}
+
+		if ( itemDoesNotExist ) {
+			/**
+			 * Item not found.
+			 *
+			 * @error collection-remove-404
+			 */
+			throw new CKEditorError( 'collection-remove-404', this );
+		}
+
+		this._items.splice( index, 1 );
+		this._itemMap.delete( id );
+
+		const externalItem = this._bindToInternalToExternalMap.get( item );
+		this._bindToInternalToExternalMap.delete( item );
+		this._bindToExternalToInternalMap.delete( externalItem );
+
+		this.fire( 'remove', item, index );
+
+		return [ item, index ];
+	}
+
+	/**
 	 * Iterable interface.
 	 *
 	 * @returns {Iterable.<*>}
@@ -678,6 +737,15 @@ export default class Collection {
 	 *
 	 * @event add
 	 * @param {Object} item The added item.
+	 */
+
+	/**
+	 * Fired when the collection was changed due to adding or removing items.
+	 *
+	 * @event change
+	 * @param {Iterable.<Object>} added A list of added items.
+	 * @param {Iterable.<Object>} removed A list of removed items.
+	 * @param {Number} index An index where the addition or removal occurred.
 	 */
 
 	/**

@@ -6,12 +6,12 @@
 
 .ck-editor__editable .ck-horizontal-line {
 	/* Necessary to render properly next to floated objects, e.g. side image case. */
-	overflow: hidden;
+	display: flow-root;
 }
 
 .ck-content hr {
-	border-width: 1px 0 0;
-	border-style: solid;
-	border-color: hsl(0, 0%, 37%);
-	margin: 0;
+	margin: 15px 0;
+	height: 4px;
+	background: hsl(0, 0%, 87%);
+	border: 0;
 }

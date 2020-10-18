@@ -20,7 +20,7 @@ import Table from '../../src/table';
 import TablePropertiesEditing from '../../src/tableproperties/tablepropertiesediting';
 import TablePropertiesUI from '../../src/tableproperties/tablepropertiesui';
 import TablePropertiesUIView from '../../src/tableproperties/ui/tablepropertiesview';
-import { defaultColors } from '../../src/ui/utils';
+import { defaultColors } from '../../src/utils/ui/table-properties';
 
 describe( 'table properties', () => {
 	describe( 'TablePropertiesUI', () => {
@@ -119,6 +119,26 @@ describe( 'table properties', () => {
 
 					tablePropertiesButton.fire( 'execute' );
 					sinon.assert.calledOnce( spy );
+				} );
+
+				it( 'should be disabled if all of the table properties commands are disabled', () => {
+					[
+						'tableBorderStyle',
+						'tableBorderColor',
+						'tableBorderWidth',
+						'tableBackgroundColor',
+						'tableWidth',
+						'tableHeight',
+						'tableAlignment'
+					].forEach( command => {
+						editor.commands.get( command ).isEnabled = false;
+					} );
+
+					expect( tablePropertiesButton.isEnabled ).to.be.false;
+
+					editor.commands.get( 'tableBackgroundColor' ).isEnabled = true;
+
+					expect( tablePropertiesButton.isEnabled ).to.be.true;
 				} );
 			} );
 		} );

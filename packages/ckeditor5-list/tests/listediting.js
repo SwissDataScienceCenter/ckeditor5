@@ -175,7 +175,7 @@ describe( 'ListEditing', () => {
 	} );
 
 	describe( 'delete key handling callback', () => {
-		it( 'should execute outdentList command on backspace key in first item of list', () => {
+		it( 'should execute outdentList command on backspace key in first item of list (first node in root)', () => {
 			const domEvtDataStub = { preventDefault() {}, direction: 'backward' };
 
 			sinon.spy( editor, 'execute' );
@@ -187,7 +187,7 @@ describe( 'ListEditing', () => {
 			sinon.assert.calledWithExactly( editor.execute, 'outdentList' );
 		} );
 
-		it( 'should execute outdentList command on backspace key in first item of list', () => {
+		it( 'should execute outdentList command on backspace key in first item of list (after a paragraph)', () => {
 			const domEvtDataStub = { preventDefault() {}, direction: 'backward' };
 
 			sinon.spy( editor, 'execute' );
@@ -244,18 +244,6 @@ describe( 'ListEditing', () => {
 				model,
 				'<listItem listType="bulleted" listIndent="0">foo</listItem><listItem listType="bulleted" listIndent="0">[]foo</listItem>'
 			);
-
-			editor.editing.view.document.fire( 'delete', domEvtDataStub );
-
-			sinon.assert.notCalled( editor.execute );
-		} );
-
-		it( 'should not execute outdentList command when selection is not on first position', () => {
-			const domEvtDataStub = { preventDefault() {}, direction: 'backward' };
-
-			sinon.spy( editor, 'execute' );
-
-			setModelData( model, '<listItem listType="bulleted" listIndent="0">fo[]o</listItem>' );
 
 			editor.editing.view.document.fire( 'delete', domEvtDataStub );
 
@@ -1954,7 +1942,7 @@ describe( 'ListEditing', () => {
 								'f' +
 								'</li>' +
 							'<li>g</li>' +
-						'</ul>',
+						'</ul>'
 					);
 
 					const expectedModelData =
@@ -3985,7 +3973,7 @@ describe( 'ListEditing', () => {
 		} );
 
 		// Just checking that it doesn't crash. #69
-		it( 'should work if an element is passed to DataController#insertContent()', () => {
+		it( 'should work if an element is passed to DataController#insertContent() - case #69', () => {
 			setModelData( model,
 				'<listItem listType="bulleted" listIndent="0">A</listItem>' +
 				'<listItem listType="bulleted" listIndent="1">B[]</listItem>' +
@@ -4284,9 +4272,7 @@ describe( 'ListEditing', () => {
 
 				// Use split to allowed parent logic to simulate a non-standard use of `modelCursor` after split.
 				const splitBlock = conversionApi.writer.createElement( 'splitBlock' );
-				const splitResult = conversionApi.splitToAllowedParent( splitBlock, data.modelCursor );
-
-				conversionApi.writer.insert( splitBlock, splitResult.position );
+				conversionApi.safeInsert( splitBlock, data.modelCursor );
 
 				data.modelRange = conversionApi.writer.createRangeOn( splitBlock );
 				data.modelCursor = conversionApi.writer.createPositionAfter( splitBlock );

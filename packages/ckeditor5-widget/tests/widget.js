@@ -3,8 +3,13 @@
  * For licensing, see LICENSE.md or https://ckeditor.com/legal/ckeditor-oss-license
  */
 
-import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtesteditor';
+/* global document */
+
+import ClassicTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/classictesteditor';
+import Enter from '@ckeditor/ckeditor5-enter/src/enter';
+import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import Widget from '../src/widget';
+import WidgetTypeAround from '../src/widgettypearound/widgettypearound';
 import Typing from '@ckeditor/ckeditor5-typing/src/typing';
 import MouseObserver from '@ckeditor/ckeditor5-engine/src/view/observer/mouseobserver';
 import { toWidget } from '../src/utils';
@@ -14,15 +19,19 @@ import { getData as getViewData } from '@ckeditor/ckeditor5-engine/src/dev-utils
 import { keyCodes } from '@ckeditor/ckeditor5-utils/src/keyboard';
 import testUtils from '@ckeditor/ckeditor5-core/tests/_utils/utils';
 
-/* global document */
-
 describe( 'Widget', () => {
-	let editor, model, view, viewDocument;
+	let element, editor, model, view, viewDocument;
 
 	testUtils.createSinonSandbox();
 
 	beforeEach( () => {
-		return VirtualTestEditor.create( { plugins: [ Widget, Typing ] } )
+		element = document.createElement( 'div' );
+		document.body.appendChild( element );
+
+		return ClassicTestEditor
+			.create( element, {
+				plugins: [ Paragraph, Widget, Typing, Enter ]
+			} )
 			.then( newEditor => {
 				editor = newEditor;
 				model = editor.model;
@@ -33,8 +42,7 @@ describe( 'Widget', () => {
 					inheritAllFrom: '$block',
 					isObject: true
 				} );
-				model.schema.register( 'paragraph', {
-					inheritAllFrom: '$block',
+				model.schema.extend( 'paragraph', {
 					allowIn: 'div'
 				} );
 				model.schema.register( 'inline', {
@@ -76,38 +84,43 @@ describe( 'Widget', () => {
 				} );
 
 				editor.conversion.for( 'downcast' )
-					.elementToElement( { model: 'paragraph', view: 'p' } )
 					.elementToElement( { model: 'inline', view: 'figure' } )
 					.elementToElement( { model: 'image', view: 'img' } )
 					.elementToElement( { model: 'blockQuote', view: 'blockquote' } )
 					.elementToElement( { model: 'div', view: 'div' } )
 					.elementToElement( {
 						model: 'widget',
-						view: ( modelItem, viewWriter ) => {
-							const b = viewWriter.createAttributeElement( 'b' );
-							const div = viewWriter.createContainerElement( 'div' );
-							viewWriter.insert( viewWriter.createPositionAt( div, 0 ), b );
+						view: ( modelItem, { writer } ) => {
+							const b = writer.createAttributeElement( 'b' );
+							const div = writer.createContainerElement( 'div' );
+							writer.insert( writer.createPositionAt( div, 0 ), b );
 
-							return toWidget( div, viewWriter, { label: 'element label' } );
+							return toWidget( div, writer, { label: 'element label' } );
 						}
 					} )
 					.elementToElement( {
 						model: 'inline-widget',
-						view: ( modelItem, viewWriter ) => {
-							const span = viewWriter.createContainerElement( 'span' );
+						view: ( modelItem, { writer } ) => {
+							const span = writer.createContainerElement( 'span' );
 
-							return toWidget( span, viewWriter );
+							return toWidget( span, writer );
 						}
 					} )
 					.elementToElement( {
 						model: 'nested',
-						view: ( modelItem, viewWriter ) => viewWriter.createEditableElement( 'figcaption', { contenteditable: true } )
+						view: ( modelItem, { writer } ) => writer.createEditableElement( 'figcaption', { contenteditable: true } )
 					} )
 					.elementToElement( {
 						model: 'editable',
-						view: ( modelItem, viewWriter ) => viewWriter.createEditableElement( 'figcaption', { contenteditable: true } )
+						view: ( modelItem, { writer } ) => writer.createEditableElement( 'figcaption', { contenteditable: true } )
 					} );
 			} );
+	} );
+
+	afterEach( () => {
+		element.remove();
+
+		return editor.destroy();
 	} );
 
 	it( 'should be loaded', () => {
@@ -118,63 +131,67 @@ describe( 'Widget', () => {
 		expect( view.getObserver( MouseObserver ) ).to.be.instanceof( MouseObserver );
 	} );
 
+	it( 'should require the WidgetTypeAround plugin', () => {
+		expect( Widget.requires ).to.have.members( [ WidgetTypeAround ] );
+	} );
+
 	it( 'should create selection over clicked widget', () => {
 		setModelData( model, '[]<widget></widget>' );
 		const viewDiv = viewDocument.getRoot().getChild( 0 );
-		const domEventDataMock = {
-			target: viewDiv,
+		const domEventDataMock = new DomEventData( view, {
+			target: view.domConverter.mapViewToDom( viewDiv ),
 			preventDefault: sinon.spy()
-		};
+		} );
 
 		viewDocument.fire( 'mousedown', domEventDataMock );
 
 		expect( getModelData( model ) ).to.equal( '[<widget></widget>]' );
-		sinon.assert.calledOnce( domEventDataMock.preventDefault );
+		sinon.assert.calledOnce( domEventDataMock.domEvent.preventDefault );
 	} );
 
 	it( 'should create selection when clicked in nested element', () => {
 		setModelData( model, '[]<widget></widget>' );
 		const viewDiv = viewDocument.getRoot().getChild( 0 );
 		const viewB = viewDiv.getChild( 0 );
-		const domEventDataMock = {
-			target: viewB,
+		const domEventDataMock = new DomEventData( view, {
+			target: view.domConverter.mapViewToDom( viewB ),
 			preventDefault: sinon.spy()
-		};
+		} );
 
 		viewDocument.fire( 'mousedown', domEventDataMock );
 
 		expect( getModelData( model ) ).to.equal( '[<widget></widget>]' );
-		sinon.assert.calledOnce( domEventDataMock.preventDefault );
+		sinon.assert.calledOnce( domEventDataMock.domEvent.preventDefault );
 	} );
 
 	it( 'should do nothing if clicked in non-widget element', () => {
 		setModelData( model, '<paragraph>[]foo bar</paragraph><widget></widget>' );
 		const viewP = viewDocument.getRoot().getChild( 0 );
-		const domEventDataMock = {
-			target: viewP,
+		const domEventDataMock = new DomEventData( view, {
+			target: view.domConverter.mapViewToDom( viewP ),
 			preventDefault: sinon.spy()
-		};
+		} );
 
 		view.focus();
 		viewDocument.fire( 'mousedown', domEventDataMock );
 
 		expect( getModelData( model ) ).to.equal( '<paragraph>[]foo bar</paragraph><widget></widget>' );
-		sinon.assert.notCalled( domEventDataMock.preventDefault );
+		sinon.assert.notCalled( domEventDataMock.domEvent.preventDefault );
 	} );
 
 	it( 'should not focus editable if already is focused', () => {
 		setModelData( model, '<widget></widget>' );
 		const widget = viewDocument.getRoot().getChild( 0 );
-		const domEventDataMock = {
-			target: widget,
+		const domEventDataMock = new DomEventData( view, {
+			target: view.domConverter.mapViewToDom( widget ),
 			preventDefault: sinon.spy()
-		};
+		} );
 		const focusSpy = sinon.spy( view, 'focus' );
 
 		viewDocument.isFocused = true;
 		viewDocument.fire( 'mousedown', domEventDataMock );
 
-		sinon.assert.calledOnce( domEventDataMock.preventDefault );
+		sinon.assert.calledOnce( domEventDataMock.domEvent.preventDefault );
 		sinon.assert.notCalled( focusSpy );
 		expect( getModelData( model ) ).to.equal( '[<widget></widget>]' );
 	} );
@@ -183,7 +200,12 @@ describe( 'Widget', () => {
 		setModelData( model, '[<widget>foo bar</widget>]' );
 
 		expect( getViewData( view ) ).to.equal(
-			'[<div class="ck-widget ck-widget_selected" contenteditable="false">foo bar<b></b></div>]'
+			'[<div class="ck-widget ck-widget_selected" ' +
+			'contenteditable="false">' +
+				'foo bar' +
+				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+			'</div>]'
 		);
 		expect( viewDocument.selection.isFake ).to.be.true;
 	} );
@@ -201,9 +223,15 @@ describe( 'Widget', () => {
 		expect( getViewData( view ) ).to.equal(
 
 			'<p>{foo</p>' +
-			'<div class="ck-widget ck-widget_selected" contenteditable="false"><b></b></div>' +
-			'<div class="ck-widget ck-widget_selected" contenteditable="false"><b></b></div>' +
-			']'
+			'<div class="ck-widget ck-widget_selected" contenteditable="false">' +
+				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+			'</div>' +
+			'<div class="ck-widget ck-widget_selected" ' +
+			'contenteditable="false">' +
+				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+			'</div>]'
 		);
 	} );
 
@@ -217,7 +245,12 @@ describe( 'Widget', () => {
 		setModelData( model, '<paragraph>foo</paragraph>[<widget>foo</widget>]' );
 
 		expect( getViewData( view ) ).to.equal(
-			'<p>foo</p>[<div class="ck-widget ck-widget_selected" contenteditable="false">foo<b></b></div>]'
+			'<p>foo</p>' +
+			'[<div class="ck-widget ck-widget_selected" contenteditable="false">' +
+				'foo' +
+				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+			'</div>]'
 		);
 
 		model.change( writer => {
@@ -225,7 +258,12 @@ describe( 'Widget', () => {
 		} );
 
 		expect( getViewData( view ) ).to.equal(
-			'<p>{}foo</p><div class="ck-widget" contenteditable="false">foo<b></b></div>'
+			'<p>{}foo</p>' +
+			'<div class="ck-widget" contenteditable="false">' +
+				'foo' +
+				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+			'</div>'
 		);
 	} );
 
@@ -236,6 +274,7 @@ describe( 'Widget', () => {
 			'<div class="ck-widget" contenteditable="false">' +
 				'<figcaption contenteditable="true">foo bar</figcaption>' +
 				'<b></b>' +
+				'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 			'</div>' +
 			'<figcaption contenteditable="true">{baz}</figcaption>'
 		);
@@ -246,112 +285,128 @@ describe( 'Widget', () => {
 			test(
 				'should move selection forward from selected object - right arrow',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				keyCodes.arrowright,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowright, keyCodes.arrowright ],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should move selection forward from selected object - down arrow',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				keyCodes.arrowdown,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowdown, keyCodes.arrowdown ],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should move selection backward from selected object - left arrow',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				keyCodes.arrowleft,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowleft, keyCodes.arrowleft ],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should move selection backward from selected object - up arrow',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				keyCodes.arrowup,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowup, keyCodes.arrowup ],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should move selection to next widget - right arrow',
 				'[<widget></widget>]<widget></widget>',
-				keyCodes.arrowright,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowright, keyCodes.arrowright ],
 				'<widget></widget>[<widget></widget>]'
 			);
 
 			test(
 				'should move selection to next widget - down arrow',
 				'[<widget></widget>]<widget></widget>',
-				keyCodes.arrowdown,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowdown, keyCodes.arrowdown ],
 				'<widget></widget>[<widget></widget>]'
 			);
 
 			test(
 				'should move selection to previous widget - left arrow',
 				'<widget></widget>[<widget></widget>]',
-				keyCodes.arrowleft,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowleft, keyCodes.arrowleft ],
 				'[<widget></widget>]<widget></widget>'
 			);
 
 			test(
 				'should move selection to previous widget - up arrow',
 				'<widget></widget>[<widget></widget>]',
-				keyCodes.arrowup,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowup, keyCodes.arrowup ],
 				'[<widget></widget>]<widget></widget>'
 			);
 
+			// Note: Testing an inline widget only because block widgets are handled and tested by the WidgetTypeAround plugin.
 			test(
-				'should do nothing on non-collapsed selection next to object - right arrow',
-				'<paragraph>ba[r]</paragraph><widget></widget>',
+				'should do nothing on non-collapsed selection next to an inline widget - right arrow',
+				'<paragraph>ba[r]<inline-widget></inline-widget></paragraph>',
 				keyCodes.arrowright,
-				'<paragraph>ba[r]</paragraph><widget></widget>'
+				'<paragraph>ba[r]<inline-widget></inline-widget></paragraph>'
 			);
 
+			// Note: Testing an inline widget only because block widgets are handled and tested by the WidgetTypeAround plugin.
 			test(
-				'should do nothing on non-collapsed selection next to object - down arrow',
-				'<paragraph>ba[r]</paragraph><widget></widget>',
+				'should do nothing on non-collapsed selection next to an inline widget - down arrow',
+				'<paragraph>ba[r]<inline-widget></inline-widget></paragraph>',
 				keyCodes.arrowdown,
-				'<paragraph>ba[r]</paragraph><widget></widget>'
+				'<paragraph>ba[r]<inline-widget></inline-widget></paragraph>'
 			);
 
+			// Note: Testing an inline widget only because block widgets are handled and tested by the WidgetTypeAround plugin.
 			test(
-				'should do nothing on non-collapsed selection next to object - left arrow',
-				'<widget></widget><paragraph>[b]ar</paragraph>',
+				'should do nothing on non-collapsed selection next to an inline widget - left arrow',
+				'<paragraph><inline-widget></inline-widget>[b]ar</paragraph>',
 				keyCodes.arrowleft,
-				'<widget></widget><paragraph>[b]ar</paragraph>'
+				'<paragraph><inline-widget></inline-widget>[b]ar</paragraph>'
 			);
 
+			// Note: Testing an inline widget only because block widgets are handled and tested by the WidgetTypeAround plugin.
 			test(
-				'should do nothing on non-collapsed selection next to object - up arrow',
-				'<widget></widget><paragraph>[b]ar</paragraph>',
+				'should do nothing on non-collapsed selection next to an inline widget - up arrow',
+				'<paragraph><inline-widget></inline-widget>[b]ar</paragraph>',
 				keyCodes.arrowup,
-				'<widget></widget><paragraph>[b]ar</paragraph>'
+				'<paragraph><inline-widget></inline-widget>[b]ar</paragraph>'
 			);
 
 			test(
 				'should not move selection if there is no correct location - right arrow',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				keyCodes.arrowright,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowright, keyCodes.arrowright ],
 				'<paragraph>foo</paragraph>[<widget></widget>]'
 			);
 
 			test(
 				'should not move selection if there is no correct location - down arrow',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				keyCodes.arrowdown,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowdown, keyCodes.arrowdown ],
 				'<paragraph>foo</paragraph>[<widget></widget>]'
 			);
 
 			test(
 				'should not move selection if there is no correct location - left arrow',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				keyCodes.arrowleft,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowleft, keyCodes.arrowleft ],
 				'[<widget></widget>]<paragraph>foo</paragraph>'
 			);
 
 			test(
 				'should not move selection if there is no correct location - up arrow',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				keyCodes.arrowup,
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[ keyCodes.arrowup, keyCodes.arrowup ],
 				'[<widget></widget>]<paragraph>foo</paragraph>'
 			);
 
@@ -372,10 +427,12 @@ describe( 'Widget', () => {
 				setModelData( model, '<paragraph>foo</paragraph>[<widget></widget>]' );
 				viewDocument.on( 'keydown', keydownHandler );
 
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				viewDocument.fire( 'keydown', domEventDataMock );
 				viewDocument.fire( 'keydown', domEventDataMock );
 
 				expect( getModelData( model ) ).to.equal( '<paragraph>foo</paragraph>[<widget></widget>]' );
-				sinon.assert.calledOnce( domEventDataMock.preventDefault );
+				sinon.assert.calledTwice( domEventDataMock.preventDefault );
 				sinon.assert.notCalled( keydownHandler );
 			} );
 
@@ -388,10 +445,12 @@ describe( 'Widget', () => {
 				setModelData( model, '[<widget></widget>]<paragraph>foo</paragraph>' );
 				viewDocument.on( 'keydown', keydownHandler );
 
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				viewDocument.fire( 'keydown', domEventDataMock );
 				viewDocument.fire( 'keydown', domEventDataMock );
 
 				expect( getModelData( model ) ).to.equal( '[<widget></widget>]<paragraph>foo</paragraph>' );
-				sinon.assert.calledOnce( domEventDataMock.preventDefault );
+				sinon.assert.calledTwice( domEventDataMock.preventDefault );
 				sinon.assert.notCalled( keydownHandler );
 			} );
 
@@ -454,84 +513,132 @@ describe( 'Widget', () => {
 			test(
 				'should work correctly with modifier key: right arrow + ctrl',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowright, ctrlKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowright, ctrlKey: true },
+					{ keyCode: keyCodes.arrowright, ctrlKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: right arrow + alt',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowright, altKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowright, altKey: true },
+					{ keyCode: keyCodes.arrowright, altKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: right arrow + shift',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowright, shiftKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowright, shiftKey: true },
+					{ keyCode: keyCodes.arrowright, shiftKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: down arrow + ctrl',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowdown, ctrlKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowdown, ctrlKey: true },
+					{ keyCode: keyCodes.arrowdown, ctrlKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: down arrow + alt',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowdown, altKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowdown, altKey: true },
+					{ keyCode: keyCodes.arrowdown, altKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: down arrow + shift',
 				'[<widget></widget>]<paragraph>foo</paragraph>',
-				{ keyCode: keyCodes.arrowdown, shiftKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowdown, shiftKey: true },
+					{ keyCode: keyCodes.arrowdown, shiftKey: true }
+				],
 				'<widget></widget><paragraph>[]foo</paragraph>'
 			);
 
 			test(
 				'should work correctly with modifier key: left arrow + ctrl',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowleft, ctrlKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowleft, ctrlKey: true },
+					{ keyCode: keyCodes.arrowleft, ctrlKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should work correctly with modifier key: left arrow + alt',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowleft, altKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowleft, altKey: true },
+					{ keyCode: keyCodes.arrowleft, altKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should work correctly with modifier key: left arrow + shift',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowleft, shiftKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowleft, shiftKey: true },
+					{ keyCode: keyCodes.arrowleft, shiftKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should work correctly with modifier key: up arrow + ctrl',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowup, ctrlKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowup, ctrlKey: true },
+					{ keyCode: keyCodes.arrowup, ctrlKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should work correctly with modifier key: up arrow + alt',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowup, altKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowup, altKey: true },
+					{ keyCode: keyCodes.arrowup, altKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
 			test(
 				'should work correctly with modifier key: up arrow + shift',
 				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.arrowup, shiftKey: true },
+				// Note: The first step is handled by the WidgetTypeAround plugin.
+				[
+					{ keyCode: keyCodes.arrowup, shiftKey: true },
+					{ keyCode: keyCodes.arrowup, shiftKey: true }
+				],
 				'<paragraph>foo[]</paragraph><widget></widget>'
 			);
 
@@ -658,7 +765,8 @@ describe( 'Widget', () => {
 				test(
 					'should move selection forward from selected object - left arrow',
 					'[<widget></widget>]<paragraph>foo</paragraph>',
-					keyCodes.arrowleft,
+					// Note: The first step is handled by the WidgetTypeAround plugin.
+					[ keyCodes.arrowleft, keyCodes.arrowleft ],
 					'<widget></widget><paragraph>[]foo</paragraph>',
 					null,
 					'rtl'
@@ -667,7 +775,8 @@ describe( 'Widget', () => {
 				test(
 					'should move selection backward from selected object - right arrow',
 					'<paragraph>foo</paragraph>[<widget></widget>]',
-					keyCodes.arrowright,
+					// Note: The first step is handled by the WidgetTypeAround plugin.
+					[ keyCodes.arrowright, keyCodes.arrowright ],
 					'<paragraph>foo[]</paragraph><widget></widget>',
 					null,
 					'rtl'
@@ -676,7 +785,8 @@ describe( 'Widget', () => {
 				test(
 					'should move selection to next widget - left arrow',
 					'[<widget></widget>]<widget></widget>',
-					keyCodes.arrowleft,
+					// Note: The first step is handled by the WidgetTypeAround plugin.
+					[ keyCodes.arrowleft, keyCodes.arrowleft ],
 					'<widget></widget>[<widget></widget>]',
 					null,
 					'rtl'
@@ -685,7 +795,8 @@ describe( 'Widget', () => {
 				test(
 					'should move selection to previous widget - right arrow',
 					'<widget></widget>[<widget></widget>]',
-					keyCodes.arrowright,
+					// Note: The first step is handled by the WidgetTypeAround plugin.
+					[ keyCodes.arrowright, keyCodes.arrowright ],
 					'[<widget></widget>]<widget></widget>',
 					null,
 					'rtl'
@@ -693,118 +804,33 @@ describe( 'Widget', () => {
 			} );
 		} );
 
-		describe( 'enter', () => {
-			test(
-				'should insert a paragraph after the selected widget upon Enter',
-				'[<widget></widget>]',
-				keyCodes.enter,
-				'<widget></widget><paragraph>[]</paragraph>'
-			);
-
-			test(
-				'should insert a paragraph before the selected widget upon Shift+Enter',
-				'[<widget></widget>]',
-				{ keyCode: keyCodes.enter, shiftKey: true },
-				'<paragraph>[]</paragraph><widget></widget>'
-			);
-
-			test(
-				'should insert a paragraph when not a first-child of the root',
-				'[<widget></widget>]<paragraph>foo</paragraph>',
-				keyCodes.enter,
-				'<widget></widget><paragraph>[]</paragraph><paragraph>foo</paragraph>'
-			);
-
-			test(
-				'should insert a paragraph when not a last-child of the root',
-				'<paragraph>foo</paragraph>[<widget></widget>]',
-				{ keyCode: keyCodes.enter, shiftKey: true },
-				'<paragraph>foo</paragraph><paragraph>[]</paragraph><widget></widget>'
-			);
-
-			test(
-				'should insert a paragraph only when an entire widget is selected (#1)',
-				'<widget><nested>[foo] bar</nested></widget>',
-				keyCodes.enter,
-				'<widget><nested>[] bar</nested></widget>'
-			);
-
-			test(
-				'should insert a paragraph only when an entire widget is selected (#2)',
-				'<paragraph>f[oo</paragraph><widget></widget><paragraph>b]ar</paragraph>',
-				keyCodes.enter,
-				'<paragraph>f[]ar</paragraph>'
-			);
-
-			// https://github.com/ckeditor/ckeditor5/issues/1529
-			it( 'should split parent when widget is inside a block element', () => {
-				model.schema.register( 'allowP', {
-					inheritAllFrom: '$block'
-				} );
-				model.schema.register( 'disallowP', {
-					inheritAllFrom: '$block',
-					allowIn: [ 'allowP' ]
-				} );
-				model.schema.extend( 'widget', {
-					allowIn: [ 'allowP', 'disallowP' ]
-				} );
-				model.schema.extend( 'paragraph', {
-					allowIn: [ 'allowP' ]
-				} );
-
-				editor.conversion.for( 'downcast' ).elementToElement( { model: 'parent', view: 'parent' } );
-				editor.conversion.for( 'downcast' ).elementToElement( { model: 'allowP', view: 'allowP' } );
-				editor.conversion.for( 'downcast' ).elementToElement( { model: 'disallowP', view: 'disallowP' } );
-
-				setModelData( model, '<allowP><disallowP>[<widget></widget>]</disallowP></allowP>' );
-
-				viewDocument.fire( 'keydown', new DomEventData(
-					viewDocument,
-					{ target: document.createElement( 'div' ), preventDefault() {} },
-					{ keyCode: keyCodes.enter }
-				) );
-
-				expect( getModelData( model ) ).to.equal(
-					'<allowP><disallowP><widget></widget></disallowP><paragraph>[]</paragraph><disallowP></disallowP></allowP>'
-				);
-			} );
-
-			test(
-				'should do nothing if selected is inline object',
-				'<paragraph>foo[<inline-widget></inline-widget>]bar</paragraph>',
-				keyCodes.enter,
-				'<paragraph>foo[]bar</paragraph>'
-			);
-
-			test(
-				'should insert a paragraph after the selected widget inside an element that is not a block upon Enter',
-				'<blockQuote>[<widget></widget>]</blockQuote>',
-				keyCodes.enter,
-				'<blockQuote><widget></widget><paragraph>[]</paragraph></blockQuote>'
-			);
-
-			test(
-				'should insert a paragraph before the selected widget inside an element that is not a block upon Shift+Enter',
-				'<blockQuote>[<widget></widget>]</blockQuote>',
-				{ keyCode: keyCodes.enter, shiftKey: true },
-				'<blockQuote><paragraph>[]</paragraph><widget></widget></blockQuote>'
-			);
-		} );
-
-		function test( name, data, keyCodeOrMock, expected, expectedView, contentLanguageDirection = 'ltr' ) {
+		function test( name, data, actions, expected, expectedView, contentLanguageDirection = 'ltr' ) {
 			it( name, () => {
 				testUtils.sinon.stub( editor.locale, 'contentLanguageDirection' ).value( contentLanguageDirection );
 
-				const domEventDataMock = ( typeof keyCodeOrMock == 'object' ) ? keyCodeOrMock : {
-					keyCode: keyCodeOrMock
-				};
+				if ( !Array.isArray( actions ) ) {
+					actions = [ actions ];
+				}
+
+				actions = actions.map( action => {
+					if ( typeof action === 'object' ) {
+						return action;
+					}
+
+					return {
+						keyCode: action
+					};
+				} );
 
 				setModelData( model, data );
-				viewDocument.fire( 'keydown', new DomEventData(
-					viewDocument,
-					{ target: document.createElement( 'div' ), preventDefault() {} },
-					domEventDataMock
-				) );
+
+				for ( const action of actions ) {
+					viewDocument.fire( 'keydown', new DomEventData(
+						viewDocument,
+						{ target: document.createElement( 'div' ), preventDefault() {}, stopPropagation() {} },
+						action
+					) );
+				}
 
 				expect( getModelData( model ) ).to.equal( expected );
 
@@ -1229,8 +1255,16 @@ describe( 'Widget', () => {
 	} );
 
 	describe( 'selection handle', () => {
+		let element, editor;
+
 		beforeEach( () => {
-			return VirtualTestEditor.create( { plugins: [ Widget, Typing ] } )
+			element = document.createElement( 'div' );
+			document.body.appendChild( element );
+
+			return ClassicTestEditor
+				.create( element, {
+					plugins: [ Paragraph, Widget, Typing ]
+				} )
 				.then( newEditor => {
 					editor = newEditor;
 					model = editor.model;
@@ -1241,9 +1275,6 @@ describe( 'Widget', () => {
 						inheritAllFrom: '$block',
 						allowIn: 'widget',
 						isObject: true
-					} );
-					model.schema.register( 'paragraph', {
-						inheritAllFrom: '$block'
 					} );
 					model.schema.register( 'nested', {
 						allowIn: 'widget',
@@ -1257,17 +1288,23 @@ describe( 'Widget', () => {
 						.elementToElement( { model: 'paragraph', view: 'p' } )
 						.elementToElement( {
 							model: 'widget',
-							view: ( modelItem, viewWriter ) => {
-								const widget = viewWriter.createContainerElement( 'div' );
+							view: ( modelItem, { writer } ) => {
+								const widget = writer.createContainerElement( 'div' );
 
-								return toWidget( widget, viewWriter, { hasSelectionHandle: true } );
+								return toWidget( widget, writer, { hasSelectionHandle: true } );
 							}
 						} )
 						.elementToElement( {
 							model: 'nested',
-							view: ( modelItem, viewWriter ) => viewWriter.createEditableElement( 'figcaption', { contenteditable: true } )
+							view: ( modelItem, { writer } ) => writer.createEditableElement( 'figcaption', { contenteditable: true } )
 						} );
 				} );
+		} );
+
+		afterEach( () => {
+			element.remove();
+
+			return editor.destroy();
 		} );
 
 		it( 'should select a widget on mouse click', () => {
@@ -1275,10 +1312,10 @@ describe( 'Widget', () => {
 
 			const viewWidgetSelectionHandle = viewDocument.getRoot().getChild( 1 ).getChild( 0 );
 
-			const domEventDataMock = {
-				target: viewWidgetSelectionHandle,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( viewWidgetSelectionHandle ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
@@ -1291,22 +1328,31 @@ describe( 'Widget', () => {
 			// The top-outer widget.
 			const viewWidgetSelectionHandle = viewDocument.getRoot().getChild( 0 );
 
-			const domEventDataMock = {
-				target: viewWidgetSelectionHandle,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( viewWidgetSelectionHandle ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
 			expect( getViewData( view ) ).to.equal(
-				'[<div class="ck-widget ck-widget_selected ck-widget_with-selection-handle" contenteditable="false">' +
-					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
+				'[<div class="' +
+					'ck-widget ' +
+					'ck-widget_selected ck-widget_with-selection-handle" contenteditable="false"' +
+				'>' +
+					'<div class="' +
+						'ck-widget ' +
+						'ck-widget_with-selection-handle" contenteditable="false"' +
+					'>' +
 						'<div class="ck ck-widget__selection-handle"></div>' +
+						'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 					'</div>' +
 					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
 						'<div class="ck ck-widget__selection-handle"></div>' +
+						'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 					'</div>' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>]'
 			);
 		} );
@@ -1323,28 +1369,42 @@ describe( 'Widget', () => {
 
 			const viewWidgetSelectionHandle = viewDocument.getRoot().getChild( 1 );
 
-			const domEventDataMock = {
-				target: viewWidgetSelectionHandle,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( viewWidgetSelectionHandle ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
 			expect( getViewData( view ) ).to.equal(
-				'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
+				'<div class="ck-widget ck-widget_with-selection-handle" ' +
+				'contenteditable="false">' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>' +
-				'[<div class="ck-widget ck-widget_selected ck-widget_with-selection-handle" contenteditable="false">' +
-					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
-						'<div class="ck ck-widget__selection-handle"></div>' +
-					'</div>' +
-					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
-						'<div class="ck ck-widget__selection-handle"></div>' +
-					'</div>' +
+				'[<div class="' +
+					'ck-widget ' +
+					'ck-widget_selected ck-widget_with-selection-handle" contenteditable="false"' +
+				'>' +
+					'<div ' +
+					'class="ck-widget ck-widget_with-selection-handle" ' +
+					'contenteditable="false">' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+				'</div>' +
+					'<div class="ck-widget ck-widget_with-selection-handle" ' +
+					'contenteditable="false">' +
+					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
+				'</div>' +
+					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>]' +
-				'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
+					'<div ' +
+					'class="ck-widget ck-widget_with-selection-handle" ' +
+					'contenteditable="false">' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>'
 			);
 		} );
@@ -1359,20 +1419,25 @@ describe( 'Widget', () => {
 
 			const viewWidgetSelectionHandle = viewDocument.getRoot().getChild( 0 );
 
-			const domEventDataMock = {
-				target: viewWidgetSelectionHandle,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( viewWidgetSelectionHandle ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
 			expect( getViewData( view ) ).to.equal(
-				'[<div class="ck-widget ck-widget_selected ck-widget_with-selection-handle" contenteditable="false">' +
+				'[<div class="' +
+					'ck-widget ' +
+					'ck-widget_selected ck-widget_with-selection-handle" contenteditable="false"' +
+				'>' +
 					'<figcaption contenteditable="true">foo bar</figcaption>' +
 					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
 						'<div class="ck ck-widget__selection-handle"></div>' +
+						'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 					'</div>' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>]'
 			);
 		} );
@@ -1389,25 +1454,38 @@ describe( 'Widget', () => {
 
 			const viewWidgetSelectionHandle = viewDocument.getRoot().getChild( 0 ).getChild( 1 );
 
-			const domEventDataMock = {
-				target: viewWidgetSelectionHandle,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( viewWidgetSelectionHandle ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
 			expect( getViewData( view ) ).to.equal(
-				'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
-					'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
+				'<div class="' +
+					'ck-widget ' +
+					'ck-widget_with-selection-handle" contenteditable="false"' +
+				'>' +
+					'<div class="' +
+						'ck-widget ' +
+						'ck-widget_with-selection-handle" contenteditable="false"' +
+					'>' +
 						'<div class="ck ck-widget__selection-handle"></div>' +
+						'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 					'</div>' +
-					'[<div class="ck-widget ck-widget_selected ck-widget_with-selection-handle" contenteditable="false">' +
+					'[<div class="' +
+						'ck-widget ' +
+						'ck-widget_selected ck-widget_with-selection-handle" contenteditable="false"' +
+					'>' +
 						'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
 							'<div class="ck ck-widget__selection-handle"></div>' +
+							'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 						'</div>' +
 						'<div class="ck ck-widget__selection-handle"></div>' +
+						'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 					'</div>]' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>'
 			);
 		} );
@@ -1419,21 +1497,29 @@ describe( 'Widget', () => {
 
 			const widgetInEditable = viewDocument.getRoot().getChild( 0 ).getChild( 0 ).getChild( 0 );
 
-			const domEventDataMock = {
-				target: widgetInEditable,
+			const domEventDataMock = new DomEventData( view, {
+				target: view.domConverter.mapViewToDom( widgetInEditable ),
 				preventDefault: sinon.spy()
-			};
+			} );
 
 			viewDocument.fire( 'mousedown', domEventDataMock );
 
 			expect( getViewData( view ) ).to.equal(
-				'<div class="ck-widget ck-widget_with-selection-handle" contenteditable="false">' +
-					'<figcaption contenteditable="true">' +
-						'[<div class="ck-widget ck-widget_selected ck-widget_with-selection-handle" contenteditable="false">' +
+				'<div class="' +
+					'ck-widget ' +
+					'ck-widget_with-selection-handle" contenteditable="false"' +
+				'>' +
+					'<figcaption contenteditable="true">[' +
+						'<div class="' +
+							'ck-widget ' +
+							'ck-widget_selected ck-widget_with-selection-handle" contenteditable="false"' +
+						'>' +
 							'<div class="ck ck-widget__selection-handle"></div>' +
+							'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 						'</div>]' +
 					'</figcaption>' +
 					'<div class="ck ck-widget__selection-handle"></div>' +
+					'<div class="ck ck-reset_all ck-widget__type-around"></div>' +
 				'</div>'
 			);
 		} );

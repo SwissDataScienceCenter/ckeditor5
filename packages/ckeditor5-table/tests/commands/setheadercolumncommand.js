@@ -4,13 +4,15 @@
  */
 
 import ModelTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/modeltesteditor';
+import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import { getData, setData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
+import { assertEqualMarkup } from '@ckeditor/ckeditor5-utils/tests/_utils/utils';
+
+import TableSelection from '../../src/tableselection';
+import TableEditing from '../../src/tableediting';
+import { assertSelectedCells, modelTable } from '../_utils/utils';
 
 import SetHeaderColumnCommand from '../../src/commands/setheadercolumncommand';
-import { assertSelectedCells, defaultConversion, defaultSchema, modelTable } from '../_utils/utils';
-import TableSelection from '../../src/tableselection';
-import TableUtils from '../../src/tableutils';
-import { assertEqualMarkup } from '@ckeditor/ckeditor5-utils/tests/_utils/utils';
 
 describe( 'SetHeaderColumnCommand', () => {
 	let editor, model, command;
@@ -18,15 +20,12 @@ describe( 'SetHeaderColumnCommand', () => {
 	beforeEach( () => {
 		return ModelTestEditor
 			.create( {
-				plugins: [ TableUtils, TableSelection ]
+				plugins: [ Paragraph, TableEditing, TableSelection ]
 			} )
 			.then( newEditor => {
 				editor = newEditor;
 				model = editor.model;
 				command = new SetHeaderColumnCommand( editor );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
 			} );
 	} );
 
@@ -196,6 +195,18 @@ describe( 'SetHeaderColumnCommand', () => {
 			assertEqualMarkup( getData( model ), modelTable( [
 				[ '00', '01[]', '02', '03' ]
 			], { headingColumns: 1 } ) );
+		} );
+
+		it( 'should remove "headingColumns" attribute from table if no value was given', () => {
+			setData( model, modelTable( [
+				[ '[]00', '01', '02', '03' ]
+			], { headingColumns: 3 } ) );
+
+			command.execute();
+
+			assertEqualMarkup( getData( model ), modelTable( [
+				[ '[]00', '01', '02', '03' ]
+			] ) );
 		} );
 
 		describe( 'multi-cell selection', () => {
@@ -404,7 +415,7 @@ describe( 'SetHeaderColumnCommand', () => {
 			], { headingColumns: 2 } ) );
 		} );
 
-		it( 'should respect forceValue parameter #1', () => {
+		it( 'should respect forceValue parameter (forceValue=true)', () => {
 			setData( model, modelTable( [
 				[ '00', '01[]', '02', '03' ]
 			], { headingColumns: 3 } ) );
@@ -416,7 +427,7 @@ describe( 'SetHeaderColumnCommand', () => {
 			], { headingColumns: 3 } ) );
 		} );
 
-		it( 'should respect forceValue parameter #2', () => {
+		it( 'should respect forceValue parameter (forceValue=false)', () => {
 			setData( model, modelTable( [
 				[ '00', '01[]', '02', '03' ]
 			], { headingColumns: 1 } ) );
@@ -425,6 +436,96 @@ describe( 'SetHeaderColumnCommand', () => {
 
 			assertEqualMarkup( getData( model ), modelTable( [
 				[ '00', '01[]', '02', '03' ]
+			], { headingColumns: 1 } ) );
+		} );
+
+		it( 'should fix col-spanned cells on the edge of an table heading columns section', () => {
+			// +----+----+----+
+			// | 00 | 01      |
+			// +----+         +
+			// | 10 |         |
+			// +----+----+----+
+			// | 20 | 21 | 22 |
+			// +----+----+----+
+			//      ^-- heading columns
+			setData( model, modelTable( [
+				[ '00', { contents: '[]01', colspan: 2, rowspan: 2 } ],
+				[ '10' ],
+				[ '20', '21', '22' ]
+			], { headingColumns: 1 } ) );
+
+			command.execute();
+
+			// +----+----+----+
+			// | 00 | 01 |    |
+			// +----+    +    +
+			// | 10 |    |    |
+			// +----+----+----+
+			// | 20 | 21 | 22 |
+			// +----+----+----+
+			//           ^-- heading columns
+			assertEqualMarkup( getData( model ), modelTable( [
+				[ '00', { contents: '[]01', rowspan: 2 }, { contents: '', rowspan: 2 } ],
+				[ '10' ],
+				[ '20', '21', '22' ]
+			], { headingColumns: 2 } ) );
+		} );
+
+		it( 'should split to at most 2 table cells when fixing col-spanned cells on the edge of an table heading columns section', () => {
+			// +----+----+----+----+----+----+
+			// | 00 | 01                     |
+			// +----+                        +
+			// | 10 |                        |
+			// +----+----+----+----+----+----+
+			// | 20 | 21 | 22 | 23 | 24 | 25 |
+			// +----+----+----+----+----+----+
+			//      ^-- heading columns
+			setData( model, modelTable( [
+				[ '00', { contents: '01', colspan: 5, rowspan: 2 } ],
+				[ '10' ],
+				[ '20', '21', '22[]', '23', '24', '25' ]
+			], { headingColumns: 1 } ) );
+
+			command.execute();
+
+			// +----+----+----+----+----+----+
+			// | 00 | 01      |              |
+			// +----+         +              +
+			// | 10 |         |              |
+			// +----+----+----+----+----+----+
+			// | 20 | 21 | 22 | 23 | 24 | 25 |
+			// +----+----+----+----+----+----+
+			//                ^-- heading columns
+			assertEqualMarkup( getData( model ), modelTable( [
+				[ '00', { contents: '01', colspan: 2, rowspan: 2 }, { contents: '', colspan: 3, rowspan: 2 } ],
+				[ '10' ],
+				[ '20', '21', '22[]', '23', '24', '25' ]
+			], { headingColumns: 3 } ) );
+		} );
+
+		it( 'should fix col-spanned cells on the edge of an table heading columns section when creating section', () => {
+			// +----+----+
+			// | 00      |
+			// +----+----+
+			// | 10 | 11 |
+			// +----+----+
+			//           ^-- heading columns
+			setData( model, modelTable( [
+				[ { contents: '00', colspan: 2 } ],
+				[ '10', '[]11' ]
+			], { headingColumns: 2 } ) );
+
+			command.execute();
+
+			// +----+----+
+			// | 00 |    |
+			// +----+----+
+			// | 10 | 11 |
+			// +----+----+
+			//      ^-- heading columns
+			assertEqualMarkup( getData( model ), modelTable( [
+				[ '00', '' ],
+				[ '10', '[]11' ]
 			], { headingColumns: 1 } ) );
 		} );
 	} );

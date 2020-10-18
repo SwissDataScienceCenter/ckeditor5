@@ -5,6 +5,7 @@
 
 import Paragraph from '../src/paragraph';
 import ParagraphCommand from '../src/paragraphcommand';
+import InsertParagraphCommand from '../src/insertparagraphcommand';
 import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtesteditor';
 import {
 	getData as getModelData,
@@ -75,16 +76,29 @@ describe( 'Paragraph feature', () => {
 			} );
 
 			it( 'should autoparagraph any inline element', () => {
-				editor.model.schema.register( 'span', { allowWhere: '$text' } );
-				editor.model.schema.extend( '$text', { allowIn: 'span' } );
+				editor.model.schema.register( 'inline', { allowWhere: '$text' } );
+				editor.model.schema.extend( '$text', { allowIn: 'inline' } );
 
-				editor.conversion.for( 'downcast' ).elementToElement( { model: 'span', view: 'span' } );
-				editor.conversion.for( 'upcast' ).elementToElement( { model: 'span', view: 'span' } );
+				editor.conversion.for( 'downcast' ).elementToElement( { model: 'inline', view: 'span' } );
+				editor.conversion.for( 'upcast' ).elementToElement( { model: 'inline', view: 'span' } );
 
 				editor.setData( '<span>foo</span>' );
 
-				expect( getModelData( model, { withoutSelection: true } ) ).to.equal( '<paragraph><span>foo</span></paragraph>' );
+				expect( getModelData( model, { withoutSelection: true } ) ).to.equal( '<paragraph><inline>foo</inline></paragraph>' );
 				expect( editor.getData() ).to.equal( '<p><span>foo</span></p>' );
+			} );
+
+			it( 'should autoparagraph any inline element with children', () => {
+				editor.model.schema.register( 'inline', { allowWhere: '$text' } );
+				editor.model.schema.extend( '$text', { allowIn: 'inline' } );
+
+				editor.conversion.for( 'downcast' ).elementToElement( { model: 'inline', view: 'span' } );
+				editor.conversion.for( 'upcast' ).elementToElement( { model: 'inline', view: 'span' } );
+
+				editor.setData( '<span>f<b>123</b>oo</span>' );
+
+				expect( getModelData( model, { withoutSelection: true } ) ).to.equal( '<paragraph><inline>f123oo</inline></paragraph>' );
+				expect( editor.getData() ).to.equal( '<p><span>f123oo</span></p>' );
 			} );
 
 			it( 'should not autoparagraph text (in clipboard holder)', () => {
@@ -386,7 +400,7 @@ describe( 'Paragraph feature', () => {
 	describe( 'post-fixing empty roots', () => {
 		it( 'should fix empty roots after editor is initialised', () => {
 			expect( doc.getRoot().childCount ).to.equal( 1 );
-			expect( doc.getRoot().getChild( 0 ).is( 'paragraph' ) ).to.be.true;
+			expect( doc.getRoot().getChild( 0 ).is( 'element', 'paragraph' ) ).to.be.true;
 		} );
 
 		it( 'should fix root if it becomes empty', () => {
@@ -402,7 +416,7 @@ describe( 'Paragraph feature', () => {
 			} );
 
 			expect( doc.getRoot().childCount ).to.equal( 1 );
-			expect( doc.getRoot().getChild( 0 ).is( 'paragraph' ) ).to.be.true;
+			expect( doc.getRoot().getChild( 0 ).is( 'element', 'paragraph' ) ).to.be.true;
 		} );
 
 		it( 'should not fix root which does not allow paragraph', () => {
@@ -437,9 +451,13 @@ describe( 'Paragraph feature', () => {
 		} );
 	} );
 
-	describe( 'command', () => {
-		it( 'should be set in the editor', () => {
+	describe( 'commands', () => {
+		it( '"paragraph" command should be registered in the editor', () => {
 			expect( editor.commands.get( 'paragraph' ) ).to.be.instanceof( ParagraphCommand );
+		} );
+
+		it( '"insertParagraph" command should be registered in the editor', () => {
+			expect( editor.commands.get( 'insertParagraph' ) ).to.be.instanceof( InsertParagraphCommand );
 		} );
 	} );
 } );

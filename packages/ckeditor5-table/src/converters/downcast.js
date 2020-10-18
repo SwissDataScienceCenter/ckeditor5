@@ -8,8 +8,7 @@
  */
 
 import TableWalker from './../tablewalker';
-import { toWidgetEditable } from '@ckeditor/ckeditor5-widget/src/utils';
-import { toTableWidget } from '../utils';
+import { setHighlightHandling, toWidget, toWidgetEditable } from '@ckeditor/ckeditor5-widget/src/utils';
 
 /**
  * Model table element to view table element conversion helper.
@@ -54,13 +53,11 @@ export function downcastInsertTable( options = {} ) {
 		// Cache for created table rows.
 		const viewRows = new Map();
 
-		for ( const tableWalkerValue of tableWalker ) {
-			const { row, cell } = tableWalkerValue;
+		for ( const tableSlot of tableWalker ) {
+			const { row, cell } = tableSlot;
 
-			const tableSection = getOrCreateTableSection( getSectionName( row, tableAttributes ), tableElement, conversionApi );
 			const tableRow = table.getChild( row );
-
-			const trElement = viewRows.get( row ) || createTr( tableRow, row, tableSection, conversionApi );
+			const trElement = viewRows.get( row ) || createTr( tableElement, tableRow, row, tableAttributes, conversionApi );
 			viewRows.set( row, trElement );
 
 			// Consume table cell - it will be always consumed as we convert whole table at once.
@@ -68,7 +65,17 @@ export function downcastInsertTable( options = {} ) {
 
 			const insertPosition = conversionApi.writer.createPositionAt( trElement, 'end' );
 
-			createViewTableCellElement( tableWalkerValue, tableAttributes, insertPosition, conversionApi, options );
+			createViewTableCellElement( tableSlot, tableAttributes, insertPosition, conversionApi, options );
+		}
+
+		// Insert empty TR elements if there are any rows without anchored cells. Since the model is always normalized
+		// this can happen only in the document fragment that only part of the table is down-casted.
+		for ( const tableRow of table.getChildren() ) {
+			const rowIndex = tableRow.index;
+
+			if ( !viewRows.has( rowIndex ) ) {
+				viewRows.set( rowIndex, createTr( tableElement, tableRow, rowIndex, tableAttributes, conversionApi ) );
+			}
 		}
 
 		const viewPosition = conversionApi.mapper.toViewPosition( data.range.start );
@@ -85,7 +92,7 @@ export function downcastInsertTable( options = {} ) {
  *
  * @returns {Function} Conversion helper.
  */
-export function downcastInsertRow( options = {} ) {
+export function downcastInsertRow() {
 	return dispatcher => dispatcher.on( 'insert:tableRow', ( evt, data, conversionApi ) => {
 		const tableRow = data.item;
 
@@ -100,7 +107,7 @@ export function downcastInsertRow( options = {} ) {
 
 		const row = table.getChildIndex( tableRow );
 
-		const tableWalker = new TableWalker( table, { startRow: row, endRow: row } );
+		const tableWalker = new TableWalker( table, { row } );
 
 		const tableAttributes = {
 			headingRows: table.getAttribute( 'headingRows' ) || 0,
@@ -110,18 +117,16 @@ export function downcastInsertRow( options = {} ) {
 		// Cache for created table rows.
 		const viewRows = new Map();
 
-		for ( const tableWalkerValue of tableWalker ) {
-			const tableSection = getOrCreateTableSection( getSectionName( row, tableAttributes ), tableElement, conversionApi );
-
-			const trElement = viewRows.get( row ) || createTr( tableRow, row, tableSection, conversionApi );
+		for ( const tableSlot of tableWalker ) {
+			const trElement = viewRows.get( row ) || createTr( tableElement, tableRow, row, tableAttributes, conversionApi );
 			viewRows.set( row, trElement );
 
 			// Consume table cell - it will be always consumed as we convert whole row at once.
-			conversionApi.consumable.consume( tableWalkerValue.cell, 'insert' );
+			conversionApi.consumable.consume( tableSlot.cell, 'insert' );
 
 			const insertPosition = conversionApi.writer.createPositionAt( trElement, 'end' );
 
-			createViewTableCellElement( tableWalkerValue, tableAttributes, insertPosition, conversionApi, options );
+			createViewTableCellElement( tableSlot, tableAttributes, insertPosition, conversionApi, { asWidget: true } );
 		}
 	} );
 }
@@ -134,7 +139,7 @@ export function downcastInsertRow( options = {} ) {
  *
  * @returns {Function} Conversion helper.
  */
-export function downcastInsertCell( options = {} ) {
+export function downcastInsertCell() {
 	return dispatcher => dispatcher.on( 'insert:tableCell', ( evt, data, conversionApi ) => {
 		const tableCell = data.item;
 
@@ -146,7 +151,7 @@ export function downcastInsertCell( options = {} ) {
 		const table = tableRow.parent;
 		const rowIndex = table.getChildIndex( tableRow );
 
-		const tableWalker = new TableWalker( table, { startRow: rowIndex, endRow: rowIndex } );
+		const tableWalker = new TableWalker( table, { row: rowIndex } );
 
 		const tableAttributes = {
 			headingRows: table.getAttribute( 'headingRows' ) || 0,
@@ -154,91 +159,16 @@ export function downcastInsertCell( options = {} ) {
 		};
 
 		// We need to iterate over a table in order to get proper row & column values from a walker
-		for ( const tableWalkerValue of tableWalker ) {
-			if ( tableWalkerValue.cell === tableCell ) {
+		for ( const tableSlot of tableWalker ) {
+			if ( tableSlot.cell === tableCell ) {
 				const trElement = conversionApi.mapper.toViewElement( tableRow );
 				const insertPosition = conversionApi.writer.createPositionAt( trElement, tableRow.getChildIndex( tableCell ) );
 
-				createViewTableCellElement( tableWalkerValue, tableAttributes, insertPosition, conversionApi, options );
+				createViewTableCellElement( tableSlot, tableAttributes, insertPosition, conversionApi, { asWidget: true } );
 
 				// No need to iterate further.
 				return;
 			}
-		}
-	} );
-}
-
-/**
- * Conversion helper that acts on heading row table attribute change.
- *
- * This converter will:
- *
- * * Rename `<td>` to `<th>` elements or vice versa depending on headings.
- * * Create `<thead>` or `<tbody>` elements if needed.
- * * Remove empty `<thead>` or `<tbody>` if needed.
- *
- * @returns {Function} Conversion helper.
- */
-export function downcastTableHeadingRowsChange( options = {} ) {
-	const asWidget = !!options.asWidget;
-
-	return dispatcher => dispatcher.on( 'attribute:headingRows:table', ( evt, data, conversionApi ) => {
-		const table = data.item;
-
-		if ( !conversionApi.consumable.consume( data.item, evt.name ) ) {
-			return;
-		}
-
-		const figureElement = conversionApi.mapper.toViewElement( table );
-		const viewTable = getViewTable( figureElement );
-
-		const oldRows = data.attributeOldValue;
-		const newRows = data.attributeNewValue;
-
-		// The head section has grown so move rows from <tbody> to <thead>.
-		if ( newRows > oldRows ) {
-			// Filter out only those rows that are in wrong section.
-			const rowsToMove = Array.from( table.getChildren() ).filter( ( { index } ) => isBetween( index, oldRows - 1, newRows ) );
-
-			const viewTableHead = getOrCreateTableSection( 'thead', viewTable, conversionApi );
-			moveViewRowsToTableSection( rowsToMove, viewTableHead, conversionApi, 'end' );
-
-			// Rename all table cells from moved rows to 'th' as they lands in <thead>.
-			for ( const tableRow of rowsToMove ) {
-				for ( const tableCell of tableRow.getChildren() ) {
-					renameViewTableCell( tableCell, 'th', conversionApi, asWidget );
-				}
-			}
-		}
-		// The head section has shrunk so move rows from <thead> to <tbody>.
-		else {
-			// Filter out only those rows that are in wrong section.
-			const rowsToMove = Array.from( table.getChildren() )
-				.filter( ( { index } ) => isBetween( index, newRows - 1, oldRows ) )
-				.reverse(); // The rows will be moved from <thead> to <tbody> in reverse order at the beginning of a <tbody>.
-
-			const viewTableBody = getOrCreateTableSection( 'tbody', viewTable, conversionApi );
-			moveViewRowsToTableSection( rowsToMove, viewTableBody, conversionApi, 0 );
-
-			// Check if cells moved from <thead> to <tbody> requires renaming to <td> as this depends on current heading columns attribute.
-			const tableWalker = new TableWalker( table, { startRow: newRows ? newRows - 1 : newRows, endRow: oldRows - 1 } );
-
-			const tableAttributes = {
-				headingRows: table.getAttribute( 'headingRows' ) || 0,
-				headingColumns: table.getAttribute( 'headingColumns' ) || 0
-			};
-
-			for ( const tableWalkerValue of tableWalker ) {
-				renameViewTableCellIfRequired( tableWalkerValue, tableAttributes, conversionApi, asWidget );
-			}
-		}
-
-		// Cleanup: Ensure that thead & tbody sections are removed if left empty after moving rows. See #6437, #6391.
-		removeTableSectionIfEmpty( 'thead', viewTable, conversionApi );
-		removeTableSectionIfEmpty( 'tbody', viewTable, conversionApi );
-
-		function isBetween( index, lower, upper ) {
-			return index > lower && index < upper;
 		}
 	} );
 }
@@ -250,9 +180,7 @@ export function downcastTableHeadingRowsChange( options = {} ) {
  *
  * @returns {Function} Conversion helper.
  */
-export function downcastTableHeadingColumnsChange( options = {} ) {
-	const asWidget = !!options.asWidget;
-
+export function downcastTableHeadingColumnsChange() {
 	return dispatcher => dispatcher.on( 'attribute:headingColumns:table', ( evt, data, conversionApi ) => {
 		const table = data.item;
 
@@ -270,13 +198,8 @@ export function downcastTableHeadingColumnsChange( options = {} ) {
 
 		const lastColumnToCheck = ( oldColumns > newColumns ? oldColumns : newColumns ) - 1;
 
-		for ( const tableWalkerValue of new TableWalker( table ) ) {
-			// Skip cells that were not in heading section before and after the change.
-			if ( tableWalkerValue.column > lastColumnToCheck ) {
-				continue;
-			}
-
-			renameViewTableCellIfRequired( tableWalkerValue, tableAttributes, conversionApi, asWidget );
+		for ( const tableSlot of new TableWalker( table, { endColumn: lastColumnToCheck } ) ) {
+			renameViewTableCellIfRequired( tableSlot, tableAttributes, conversionApi );
 		}
 	} );
 }
@@ -293,7 +216,7 @@ export function downcastRemoveRow() {
 		const viewWriter = conversionApi.writer;
 		const mapper = conversionApi.mapper;
 
-		const viewStart = mapper.toViewPosition( data.position ).getLastMatchingPosition( value => !value.item.is( 'tr' ) );
+		const viewStart = mapper.toViewPosition( data.position ).getLastMatchingPosition( value => !value.item.is( 'element', 'tr' ) );
 		const viewItem = viewStart.nodeAfter;
 		const tableSection = viewItem.parent;
 		const viewTable = tableSection.parent;
@@ -312,6 +235,68 @@ export function downcastRemoveRow() {
 	}, { priority: 'higher' } );
 }
 
+/**
+ * Overrides paragraph inside table cell conversion.
+ *
+ * This converter:
+ * * should be used to override default paragraph conversion in the editing view.
+ * * It will only convert <paragraph> placed directly inside <tableCell>.
+ * * For a single paragraph without attributes it returns `<span>` to simulate data table.
+ * * For all other cases it returns `<p>` element.
+ *
+ * @param {module:engine/model/element~Element} modelElement
+ * @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
+ * @returns {module:engine/view/containerelement~ContainerElement|undefined}
+ */
+export function convertParagraphInTableCell( modelElement, conversionApi ) {
+	const { writer } = conversionApi;
+
+	if ( !modelElement.parent.is( 'element', 'tableCell' ) ) {
+		return;
+	}
+
+	if ( isSingleParagraphWithoutAttributes( modelElement ) ) {
+		// Use display:inline-block to force Chrome/Safari to limit text mutations to this element.
+		// See #6062.
+		return writer.createContainerElement( 'span', { style: 'display:inline-block' } );
+	} else {
+		return writer.createContainerElement( 'p' );
+	}
+}
+
+/**
+ * Checks if given model `<paragraph>` is an only child of a parent (`<tableCell>`) and if it has any attribute set.
+ *
+ * The paragraph should be converted in the editing view to:
+ *
+ * * If returned `true` - to a `<span style="display:inline-block">`
+ * * If returned `false` - to a `<p>`
+ *
+ * @param {module:engine/model/element~Element} modelElement
+ * @returns {Boolean}
+ */
+export function isSingleParagraphWithoutAttributes( modelElement ) {
+	const tableCell = modelElement.parent;
+
+	const isSingleParagraph = tableCell.childCount === 1;
+
+	return isSingleParagraph && !hasAnyAttribute( modelElement );
+}
+
+// Converts a given {@link module:engine/view/element~Element} to a table widget:
+// * Adds a {@link module:engine/view/element~Element#_setCustomProperty custom property} allowing to recognize the table widget element.
+// * Calls the {@link module:widget/utils~toWidget} function with the proper element's label creator.
+//
+// @param {module:engine/view/element~Element} viewElement
+// @param {module:engine/view/downcastwriter~DowncastWriter} writer An instance of the view writer.
+// @param {String} label The element's label. It will be concatenated with the table `alt` attribute if one is present.
+// @returns {module:engine/view/element~Element}
+function toTableWidget( viewElement, writer ) {
+	writer.setCustomProperty( 'table', true, viewElement );
+
+	return toWidget( viewElement, writer, { hasSelectionHandle: true } );
+}
+
 // Renames an existing table cell in the view to a given element name.
 //
 // **Note** This method will not do anything if a view table cell has not been converted yet.
@@ -319,28 +304,23 @@ export function downcastRemoveRow() {
 // @param {module:engine/model/element~Element} tableCell
 // @param {String} desiredCellElementName
 // @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
-// @param {Boolean} asWidget
-function renameViewTableCell( tableCell, desiredCellElementName, conversionApi, asWidget ) {
+function renameViewTableCell( tableCell, desiredCellElementName, conversionApi ) {
 	const viewWriter = conversionApi.writer;
 	const viewCell = conversionApi.mapper.toViewElement( tableCell );
 
-	// View cell might be not yet converted - skip it as it will be properly created by cell converter later on.
-	if ( !viewCell ) {
-		return;
-	}
+	const editable = viewWriter.createEditableElement( desiredCellElementName, viewCell.getAttributes() );
+	const renamedCell = toWidgetEditable( editable, viewWriter );
 
-	let renamedCell;
+	setHighlightHandling(
+		renamedCell,
+		viewWriter,
+		( element, descriptor, writer ) => writer.addClass( normalizeToArray( descriptor.classes ), element ),
+		( element, descriptor, writer ) => writer.removeClass( normalizeToArray( descriptor.classes ), element )
+	);
 
-	if ( asWidget ) {
-		const editable = viewWriter.createEditableElement( desiredCellElementName, viewCell.getAttributes() );
-		renamedCell = toWidgetEditable( editable, viewWriter );
-
-		viewWriter.insert( viewWriter.createPositionAfter( viewCell ), renamedCell );
-		viewWriter.move( viewWriter.createRangeIn( viewCell ), viewWriter.createPositionAt( renamedCell, 0 ) );
-		viewWriter.remove( viewWriter.createRangeOn( viewCell ) );
-	} else {
-		renamedCell = viewWriter.rename( desiredCellElementName, viewCell );
-	}
+	viewWriter.insert( viewWriter.createPositionAfter( viewCell ), renamedCell );
+	viewWriter.move( viewWriter.createRangeIn( viewCell ), viewWriter.createPositionAt( renamedCell, 0 ) );
+	viewWriter.remove( viewWriter.createRangeOn( viewCell ) );
 
 	conversionApi.mapper.unbindViewElement( viewCell );
 	conversionApi.mapper.bindElements( tableCell, renamedCell );
@@ -348,87 +328,89 @@ function renameViewTableCell( tableCell, desiredCellElementName, conversionApi, 
 
 // Renames a table cell element in the view according to its location in the table.
 //
-// @param {module:table/tablewalker~TableWalkerValue} tableWalkerValue
+// @param {module:table/tablewalker~TableSlot} tableSlot
 // @param {{headingColumns, headingRows}} tableAttributes
 // @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
-// @param {Boolean} asWidget
-function renameViewTableCellIfRequired( tableWalkerValue, tableAttributes, conversionApi, asWidget ) {
-	const { cell } = tableWalkerValue;
+function renameViewTableCellIfRequired( tableSlot, tableAttributes, conversionApi ) {
+	const { cell } = tableSlot;
 
 	// Check whether current columnIndex is overlapped by table cells from previous rows.
-	const desiredCellElementName = getCellElementName( tableWalkerValue, tableAttributes );
+	const desiredCellElementName = getCellElementName( tableSlot, tableAttributes );
 
 	const viewCell = conversionApi.mapper.toViewElement( cell );
 
 	// If in single change we're converting attribute changes and inserting cell the table cell might not be inserted into view
 	// because of child conversion is done after parent.
 	if ( viewCell && viewCell.name !== desiredCellElementName ) {
-		renameViewTableCell( cell, desiredCellElementName, conversionApi, asWidget );
+		renameViewTableCell( cell, desiredCellElementName, conversionApi );
 	}
 }
 
 // Creates a table cell element in the view.
 //
-// @param {module:table/tablewalker~TableWalkerValue} tableWalkerValue
+// @param {module:table/tablewalker~TableSlot} tableSlot
 // @param {module:engine/view/position~Position} insertPosition
 // @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
-function createViewTableCellElement( tableWalkerValue, tableAttributes, insertPosition, conversionApi, options ) {
+function createViewTableCellElement( tableSlot, tableAttributes, insertPosition, conversionApi, options ) {
 	const asWidget = options && options.asWidget;
-	const cellElementName = getCellElementName( tableWalkerValue, tableAttributes );
+	const cellElementName = getCellElementName( tableSlot, tableAttributes );
 
 	const cellElement = asWidget ?
 		toWidgetEditable( conversionApi.writer.createEditableElement( cellElementName ), conversionApi.writer ) :
 		conversionApi.writer.createContainerElement( cellElementName );
 
-	const tableCell = tableWalkerValue.cell;
+	if ( asWidget ) {
+		setHighlightHandling(
+			cellElement,
+			conversionApi.writer,
+			( element, descriptor, writer ) => writer.addClass( normalizeToArray( descriptor.classes ), element ),
+			( element, descriptor, writer ) => writer.removeClass( normalizeToArray( descriptor.classes ), element )
+		);
+	}
+
+	const tableCell = tableSlot.cell;
 
 	const firstChild = tableCell.getChild( 0 );
 	const isSingleParagraph = tableCell.childCount === 1 && firstChild.name === 'paragraph';
 
 	conversionApi.writer.insert( insertPosition, cellElement );
 
-	if ( isSingleParagraph && !hasAnyAttribute( firstChild ) ) {
+	conversionApi.mapper.bindElements( tableCell, cellElement );
+
+	// Additional requirement for data pipeline to have backward compatible data tables.
+	if ( !asWidget && !hasAnyAttribute( firstChild ) && isSingleParagraph ) {
 		const innerParagraph = tableCell.getChild( 0 );
-		const paragraphInsertPosition = conversionApi.writer.createPositionAt( cellElement, 'end' );
 
 		conversionApi.consumable.consume( innerParagraph, 'insert' );
 
-		if ( options.asWidget ) {
-			// Use display:inline-block to force Chrome/Safari to limit text mutations to this element.
-			// See #6062.
-			const fakeParagraph = conversionApi.writer.createContainerElement( 'span', { style: 'display:inline-block' } );
-
-			conversionApi.mapper.bindElements( innerParagraph, fakeParagraph );
-			conversionApi.writer.insert( paragraphInsertPosition, fakeParagraph );
-
-			conversionApi.mapper.bindElements( tableCell, cellElement );
-		} else {
-			conversionApi.mapper.bindElements( tableCell, cellElement );
-			conversionApi.mapper.bindElements( innerParagraph, cellElement );
-		}
-	} else {
-		conversionApi.mapper.bindElements( tableCell, cellElement );
+		conversionApi.mapper.bindElements( innerParagraph, cellElement );
 	}
 }
 
 // Creates a `<tr>` view element.
 //
-// @param {module:engine/view/element~Element} tableRow
+// @param {module:engine/view/element~Element} tableElement
+// @param {module:engine/model/element~Element} tableRow
 // @param {Number} rowIndex
-// @param {module:engine/view/element~Element} tableSection
+// @param {{headingColumns, headingRows}} tableAttributes
 // @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
 // @returns {module:engine/view/element~Element}
-function createTr( tableRow, rowIndex, tableSection, conversionApi ) {
+function createTr( tableElement, tableRow, rowIndex, tableAttributes, conversionApi ) {
 	// Will always consume since we're converting <tableRow> element from a parent <table>.
 	conversionApi.consumable.consume( tableRow, 'insert' );
 
-	const trElement = conversionApi.writer.createContainerElement( 'tr' );
+	const trElement = tableRow.isEmpty ?
+		conversionApi.writer.createEmptyElement( 'tr' ) :
+		conversionApi.writer.createContainerElement( 'tr' );
+
 	conversionApi.mapper.bindElements( tableRow, trElement );
 
-	const headingRows = tableRow.parent.getAttribute( 'headingRows' ) || 0;
-	const offset = headingRows > 0 && rowIndex >= headingRows ? rowIndex - headingRows : rowIndex;
+	const headingRows = tableAttributes.headingRows;
+	const tableSection = getOrCreateTableSection( getSectionName( rowIndex, tableAttributes ), tableElement, conversionApi );
 
+	const offset = headingRows > 0 && rowIndex >= headingRows ? rowIndex - headingRows : rowIndex;
 	const position = conversionApi.writer.createPositionAt( tableSection, offset );
+
 	conversionApi.writer.insert( position, trElement );
 
 	return trElement;
@@ -436,11 +418,11 @@ function createTr( tableRow, rowIndex, tableSection, conversionApi ) {
 
 // Returns `th` for heading cells and `td` for other cells for the current table walker value.
 //
-// @param {module:table/tablewalker~TableWalkerValue} tableWalkerValue
+// @param {module:table/tablewalker~TableSlot} tableSlot
 // @param {{headingColumns, headingRows}} tableAttributes
 // @returns {String}
-function getCellElementName( tableWalkerValue, tableAttributes ) {
-	const { row, column } = tableWalkerValue;
+function getCellElementName( tableSlot, tableAttributes ) {
+	const { row, column } = tableSlot;
 	const { headingColumns, headingRows } = tableAttributes;
 
 	// Column heading are all tableCells in the first `columnHeading` rows.
@@ -521,28 +503,6 @@ function removeTableSectionIfEmpty( sectionName, tableElement, conversionApi ) {
 	}
 }
 
-// Moves view table rows associated with passed model rows to the provided table section element.
-//
-// **Note**: This method will skip not converted table rows.
-//
-// @param {Array.<module:engine/model/element~Element>} rowsToMove
-// @param {module:engine/view/element~Element} viewTableSection
-// @param {module:engine/conversion/downcastdispatcher~DowncastConversionApi} conversionApi
-// @param {Number|'end'|'before'|'after'} offset Offset or one of the flags.
-function moveViewRowsToTableSection( rowsToMove, viewTableSection, conversionApi, offset ) {
-	for ( const tableRow of rowsToMove ) {
-		const viewTableRow = conversionApi.mapper.toViewElement( tableRow );
-
-		// View table row might be not yet converted - skip it as it will be properly created by cell converter later on.
-		if ( viewTableRow ) {
-			conversionApi.writer.move(
-				conversionApi.writer.createRangeOn( viewTableRow ),
-				conversionApi.writer.createPositionAt( viewTableSection, offset )
-			);
-		}
-	}
-}
-
 // Finds a '<table>' element inside the `<figure>` widget.
 //
 // @param {module:engine/view/element~Element} viewFigure
@@ -560,4 +520,8 @@ function getViewTable( viewFigure ) {
 // @returns {Boolean}
 function hasAnyAttribute( element ) {
 	return !![ ...element.getAttributeKeys() ].length;
+}
+
+function normalizeToArray( classes ) {
+	return Array.isArray( classes ) ? classes : [ classes ];
 }

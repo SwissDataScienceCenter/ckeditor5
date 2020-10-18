@@ -15,6 +15,14 @@ The block indentation feature allows you to set indentation for text blocks such
 
 {@snippet features/indent}
 
+## Related features
+
+Here are some CKEditor 5 features that may aid structuring your content better:
+* {@link features/block-quote Block quote} &ndash; Include block quotations or pull quotes in your rich-text content.
+* {@link features/headings Headings} &ndash; Divide your content into sections.
+* {@link features/code-blocks Code block} &ndash; Insert longer, multiline code listings.
+* {@link features/text-alignment Text alignment} &ndash; Because it does matter whether the content is left, right, centered or justified.
+
 ## Configuring the block indentation feature
 
 This feature offers a few configuration options that can be used to adjust the text block indentation behavior.
@@ -47,7 +55,7 @@ ClassicEditor
 
 ### Using CSS classes
 
-If you want more semantics in your content, use CSS classes instead of fixed indentation units. You can then adjust the levels in the style sheets of your application whenever you want. 
+If you want more semantics in your content, use CSS classes instead of fixed indentation units. You can then adjust the levels in the style sheets of your application whenever you want.
 
 Here is how you can configure the block indentation feature to set indentation by applying one of the defined CSS classes:
 
@@ -179,4 +187,4 @@ The {@link module:indent/indentblock~IndentBlock} plugin registers the following
 
 ## Contribute
 
-The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5-font.
+The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-font.

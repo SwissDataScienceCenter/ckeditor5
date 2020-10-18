@@ -16,7 +16,8 @@
 
 	/* -- Generic colors ------------------------------------------------------------------------ */
 
-	--ck-color-focus-border: 									hsl(208, 79%, 51%);
+	--ck-color-focus-border-coordinates: 						208, 79%, 51%;
+	--ck-color-focus-border: 									hsl(var(--ck-color-focus-border-coordinates));
 	--ck-color-focus-outer-shadow:								hsl(207, 89%, 86%);
 	--ck-color-focus-disabled-shadow:							hsla(209, 90%, 72%,.3);
 	--ck-color-focus-error-shadow:								hsla(9,100%,56%,.3);
@@ -105,5 +106,6 @@
 	/* -- Link -------------------------------------------------------------------------------- */
 
 	--ck-color-link-default:									hsl(240, 100%, 47%);
-	--ck-color-link-selected-background: 						hsla(201, 100%, 56%, 0.1);
+	--ck-color-link-selected-background:						hsla(201, 100%, 56%, 0.1);
+	--ck-color-link-fake-selection:								hsla(201, 100%, 56%, 0.3);
 }

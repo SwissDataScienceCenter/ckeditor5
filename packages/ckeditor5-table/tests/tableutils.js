@@ -4,57 +4,40 @@
  */
 
 import ModelTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/modeltesteditor';
+import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import { getData, setData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
-
-import { defaultConversion, defaultSchema, modelTable } from './_utils/utils';
+import { assertEqualMarkup } from '@ckeditor/ckeditor5-utils/tests/_utils/utils';
 
 import TableEditing from '../src/tableediting';
+import { modelTable } from './_utils/utils';
+
 import TableUtils from '../src/tableutils';
-import { assertEqualMarkup } from '@ckeditor/ckeditor5-utils/tests/_utils/utils';
-import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 
 describe( 'TableUtils', () => {
 	let editor, model, root, tableUtils;
+
+	beforeEach( () => {
+		return ModelTestEditor.create( {
+			plugins: [ Paragraph, TableEditing, TableUtils ]
+		} ).then( newEditor => {
+			editor = newEditor;
+			model = editor.model;
+			root = model.document.getRoot( 'main' );
+			tableUtils = editor.plugins.get( TableUtils );
+		} );
+	} );
 
 	afterEach( () => {
 		return editor.destroy();
 	} );
 
 	describe( '#pluginName', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should provide plugin name', () => {
 			expect( TableUtils.pluginName ).to.equal( 'TableUtils' );
 		} );
 	} );
 
 	describe( 'getCellLocation()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should return proper table cell location', () => {
 			setData( model, modelTable( [
 				[ { rowspan: 2, colspan: 2, contents: '00[]' }, '02' ],
@@ -68,20 +51,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'insertRows()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should insert row in given table at given index', () => {
 			setData( model, modelTable( [
 				[ '11[]', '12' ],
@@ -147,60 +116,122 @@ describe( 'TableUtils', () => {
 		} );
 
 		it( 'should expand rowspan of a cell that overlaps inserted rows', () => {
+			// +----+----+----+----+
+			// | 00      | 02 | 03 |
+			// +----+----+----+----+ <-- heading rows
+			// | 10      | 12 | 13 |
+			// +         +----+----+
+			// |         | 22 | 23 |
+			// +----+----+----+----+
+			//                     ^-- heading columns
 			setData( model, modelTable( [
-				[ { colspan: 2, contents: '11[]' }, '13', '14' ],
-				[ { colspan: 2, rowspan: 4, contents: '21' }, '23', '24' ],
-				[ '33', '34' ]
+				[ { contents: '00', colspan: 2 }, '02', '03' ],
+				[ { contents: '10[]', colspan: 2, rowspan: 2 }, '12', '13' ],
+				[ '22', '23' ]
 			], { headingColumns: 3, headingRows: 1 } ) );
 
 			tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 2, rows: 3 } );
 
+			// +----+----+----+----+
+			// | 00      | 02 | 03 |
+			// +----+----+----+----+ <-- heading rows
+			// | 10      | 12 | 13 |
+			// +         +----+----+
+			// |         |    |    |
+			// +         +----+----+
+			// |         |    |    |
+			// +         +----+----+
+			// |         |    |    |
+			// +         +----+----+
+			// |         | 22 | 23 |
+			// +----+----+----+----+
+			//                     ^-- heading columns
 			assertEqualMarkup( getData( model ), modelTable( [
-				[ { colspan: 2, contents: '11[]' }, '13', '14' ],
-				[ { colspan: 2, rowspan: 7, contents: '21' }, '23', '24' ],
+				[ { contents: '00', colspan: 2 }, '02', '03' ],
+				[ { contents: '10[]', colspan: 2, rowspan: 5 }, '12', '13' ],
 				[ '', '' ],
 				[ '', '' ],
 				[ '', '' ],
-				[ '33', '34' ]
+				[ '22', '23' ]
 			], { headingColumns: 3, headingRows: 1 } ) );
 		} );
 
 		it( 'should not expand rowspan of a cell that does not overlaps inserted rows', () => {
+			// +----+----+----+
+			// | 00 | 01 | 02 |
+			// +    +----+----+
+			// |    | 11 | 12 |
+			// +----+----+----+ <-- heading rows
+			// | 20 | 21 | 22 |
+			// +----+----+----+
 			setData( model, modelTable( [
-				[ { rowspan: 2, contents: '11[]' }, '12', '13' ],
-				[ '22', '23' ],
-				[ '31', '32', '33' ]
-			], { headingColumns: 3, headingRows: 1 } ) );
+				[ { contents: '00', rowspan: 2 }, '01', '02' ],
+				[ '11[]', '12' ],
+				[ '20', '21', '22' ]
+			], { headingRows: 2 } ) );
 
 			tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 2, rows: 3 } );
 
+			// +----+----+----+
+			// | 00 | 01 | 02 |
+			// +    +----+----+
+			// |    | 11 | 12 |
+			// +----+----+----+ <-- heading rows
+			// |    |    |    |
+			// +----+----+----+
+			// |    |    |    |
+			// +----+----+----+
+			// |    |    |    |
+			// +----+----+----+
+			// | 20 | 21 | 22 |
+			// +----+----+----+
 			assertEqualMarkup( getData( model ), modelTable( [
-				[ { rowspan: 2, contents: '11[]' }, '12', '13' ],
-				[ '22', '23' ],
+				[ { contents: '00', rowspan: 2 }, '01', '02' ],
+				[ '11[]', '12' ],
 				[ '', '', '' ],
 				[ '', '', '' ],
 				[ '', '', '' ],
-				[ '31', '32', '33' ]
-			], { headingColumns: 3, headingRows: 1 } ) );
+				[ '20', '21', '22' ]
+			], { headingRows: 2 } ) );
 		} );
 
 		it( 'should properly calculate columns if next row has colspans', () => {
+			// +----+----+----+
+			// | 00 | 01 | 02 |
+			// +    +----+----+
+			// |    | 11 | 12 |
+			// +----+----+----+ <-- heading rows
+			// | 20           |
+			// +----+----+----+
 			setData( model, modelTable( [
-				[ { rowspan: 2, contents: '11[]' }, '12', '13' ],
-				[ '22', '23' ],
-				[ { colspan: 3, contents: '31' } ]
-			], { headingColumns: 3, headingRows: 1 } ) );
+				[ { contents: '00', rowspan: 2 }, '01', '02' ],
+				[ '11[]', '12' ],
+				[ { contents: '20', colspan: 3 } ]
+			], { headingRows: 2 } ) );
 
 			tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 2, rows: 3 } );
 
+			// +----+----+----+
+			// | 00 | 01 | 02 |
+			// +    +----+----+
+			// |    | 11 | 12 |
+			// +----+----+----+ <-- heading rows
+			// |    |    |    |
+			// +----+----+----+
+			// |    |    |    |
+			// +----+----+----+
+			// |    |    |    |
+			// +----+----+----+
+			// | 20           |
+			// +----+----+----+
 			assertEqualMarkup( getData( model ), modelTable( [
-				[ { rowspan: 2, contents: '11[]' }, '12', '13' ],
-				[ '22', '23' ],
+				[ { contents: '00', rowspan: 2 }, '01', '02' ],
+				[ '11[]', '12' ],
 				[ '', '', '' ],
 				[ '', '', '' ],
 				[ '', '', '' ],
-				[ { colspan: 3, contents: '31' } ]
-			], { headingColumns: 3, headingRows: 1 } ) );
+				[ { contents: '20', colspan: 3 } ]
+			], { headingRows: 2 } ) );
 		} );
 
 		it( 'should insert rows at the end of a table', () => {
@@ -219,23 +250,91 @@ describe( 'TableUtils', () => {
 				[ '', '' ]
 			] ) );
 		} );
+
+		describe( 'with copyStructureFrom enabled', () => {
+			beforeEach( () => {
+				// +----+----+----+----+----+----+
+				// | 00 | 01      | 03 | 04 | 05 |
+				// +----+         +    +----+----+
+				// | 10 |         |    | 14      |
+				// +----+----+----+----+----+----+
+				setData( model, modelTable( [
+					[ '00', { contents: '01', colspan: 2, rowspan: 2 }, { contents: '03', rowspan: 2 }, '04', '05' ],
+					[ '10', { contents: '14', colspan: 2 } ]
+				] ) );
+			} );
+
+			it( 'should copy structure from the first row', () => {
+				tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 0, rows: 1, copyStructureFromAbove: false } );
+
+				// +----+----+----+----+----+----+
+				// |    |         |    |    |    |
+				// +----+----+----+----+----+----+
+				// | 00 | 01      | 03 | 04 | 05 |
+				// +----+         +    +----+----+
+				// | 10 |         |    | 14      |
+				// +----+----+----+----+----+----+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '', { contents: '', colspan: 2 }, '', '', '' ],
+					[ '00', { contents: '01', colspan: 2, rowspan: 2 }, { contents: '03', rowspan: 2 }, '04', '05' ],
+					[ '10', { contents: '14', colspan: 2 } ]
+				] ) );
+			} );
+
+			it( 'should copy structure from the first row and properly handle row-spanned cells', () => {
+				tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 1, rows: 1, copyStructureFromAbove: true } );
+
+				// +----+----+----+----+----+----+
+				// | 00 | 01      | 03 | 04 | 05 |
+				// +----+         +    +----+----+
+				// |    |         |    |    |    |
+				// +----+         +    +----+----+
+				// | 10 |         |    | 14      |
+				// +----+----+----+----+----+----+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '00', { contents: '01', colspan: 2, rowspan: 3 }, { contents: '03', rowspan: 3 }, '04', '05' ],
+					[ '', '', '' ],
+					[ '10', { contents: '14', colspan: 2 } ]
+				] ) );
+			} );
+
+			it( 'should copy structure from the last row', () => {
+				tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 2, rows: 1, copyStructureFromAbove: true } );
+
+				// +----+----+----+----+----+----+
+				// | 00 | 01      | 03 | 04 | 05 |
+				// +----+         +    +----+----+
+				// | 10 |         |    | 14      |
+				// +----+----+----+----+----+----+
+				// |    |         |    |         |
+				// +----+----+----+----+----+----+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '00', { contents: '01', colspan: 2, rowspan: 2 }, { contents: '03', rowspan: 2 }, '04', '05' ],
+					[ '10', { contents: '14', colspan: 2 } ],
+					[ '', { contents: '', colspan: 2 }, '', { contents: '', colspan: 2 } ]
+				] ) );
+			} );
+
+			it( 'should copy structure from the last row and properly handle row-spanned cells', () => {
+				tableUtils.insertRows( root.getNodeByPath( [ 0 ] ), { at: 1, rows: 1, copyStructureFromAbove: false } );
+
+				// +----+----+----+----+----+----+
+				// | 00 | 01      | 03 | 04 | 05 |
+				// +----+         +    +----+----+
+				// |    |         |    |         |
+				// +----+         +    +----+----+
+				// | 10 |         |    | 14      |
+				// +----+----+----+----+----+----+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '00', { contents: '01', colspan: 2, rowspan: 3 }, { contents: '03', rowspan: 3 }, '04', '05' ],
+					[ '', { contents: '', colspan: 2 } ],
+					[ '10', { contents: '14', colspan: 2 } ]
+				] ) );
+			} );
+		} );
 	} );
 
 	describe( 'insertColumns()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should insert column in given table at given index', () => {
 			setData( model, modelTable( [
 				[ '11[]', '12' ],
@@ -383,22 +482,45 @@ describe( 'TableUtils', () => {
 		} );
 
 		it( 'should skip wide spanned columns', () => {
+			// +----+----+----+----+----+----+
+			// | 00 | 01 | 02 | 03 | 04 | 05 |
+			// +----+----+----+----+----+----+
+			// | 10 | 11 | 12      | 14 | 15 |
+			// +----+----+----+----+----+----+
+			// | 20                | 24      |
+			// +----+----+----+----+----+----+
+			//                     ^-- heading columns
 			setData( model, modelTable( [
-				[ '11[]', '12', '13', '14', '15' ],
-				[ '21', '22', { colspan: 2, contents: '23' }, '25' ],
-				[ { colspan: 4, contents: '31' }, { colspan: 2, contents: '34' } ]
+				[ '00', '01[]', '02', '03', '04', '05' ],
+				[ '10', '11', { contents: '12', colspan: 2 }, '14', '15' ],
+				[ { contents: '20', colspan: 4 }, { contents: '24', colspan: 2 } ]
 			], { headingColumns: 4 } ) );
 
 			tableUtils.insertColumns( root.getNodeByPath( [ 0 ] ), { at: 2, columns: 2 } );
 
+			// +----+----+----+----+----+----+----+----+
+			// | 00 | 01 |    |    | 02 | 03 | 04 | 05 |
+			// +----+----+----+----+----+----+----+----+
+			// | 10 | 11 |    |    | 12      | 14 | 15 |
+			// +----+----+----+----+----+----+----+----+
+			// | 20                          | 24      |
+			// +----+----+----+----+----+----+----+----+
+			//                               ^-- heading columns
 			assertEqualMarkup( getData( model ), modelTable( [
-				[ '11[]', '12', '', '', '13', '14', '15' ],
-				[ '21', '22', '', '', { colspan: 2, contents: '23' }, '25' ],
-				[ { colspan: 6, contents: '31' }, { colspan: 2, contents: '34' } ]
+				[ '00', '01[]', '', '', '02', '03', '04', '05' ],
+				[ '10', '11', '', '', { contents: '12', colspan: 2 }, '14', '15' ],
+				[ { contents: '20', colspan: 6 }, { contents: '24', colspan: 2 } ]
 			], { headingColumns: 6 } ) );
 		} );
 
 		it( 'should skip row & column spanned cells', () => {
+			// +----+----+----+
+			// | 00      | 02 |
+			// +         +----+
+			// |         | 12 |
+			// +----+----+----+
+			// | 20 | 21 | 22 |
+			// +----+----+----+
 			setData( model, modelTable( [
 				[ { colspan: 2, rowspan: 2, contents: '00[]' }, '02' ],
 				[ '12' ],
@@ -434,20 +556,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'splitCellVertically()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should split table cell to given table cells number', () => {
 			setData( model, modelTable( [
 				[ '00', '01', '02' ],
@@ -592,20 +700,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'splitCellHorizontally()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should split table cell to default table cells number', () => {
 			setData( model, modelTable( [
 				[ '00', '01', '02' ],
@@ -746,7 +840,7 @@ describe( 'TableUtils', () => {
 		it( 'should split row-spanned & col-spanned cell', () => {
 			setData( model, modelTable( [
 				[ '00', { colspan: 2, contents: '01[]' } ],
-				[ '10', '11' ]
+				[ '10', '11', '12' ]
 			] ) );
 
 			const tableCell = root.getNodeByPath( [ 0, 0, 1 ] );
@@ -757,7 +851,7 @@ describe( 'TableUtils', () => {
 				[ { rowspan: 3, contents: '00' }, { colspan: 2, contents: '01[]' } ],
 				[ { colspan: 2, contents: '' } ],
 				[ { colspan: 2, contents: '' } ],
-				[ '10', '11' ]
+				[ '10', '11', '12' ]
 			] ) );
 		} );
 
@@ -781,20 +875,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'getColumns()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should return proper number of columns', () => {
 			setData( model, modelTable( [
 				[ '00', { colspan: 3, contents: '01' }, '04' ]
@@ -805,20 +885,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'getRows()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		it( 'should return proper number of columns for simple table', () => {
 			setData( model, modelTable( [
 				[ '00', '01' ],
@@ -849,17 +915,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'removeRows()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ Paragraph, TableEditing, TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-			} );
-		} );
-
 		describe( 'single row', () => {
 			it( 'should remove a given row from a table start', () => {
 				setData( model, modelTable( [
@@ -902,6 +957,21 @@ describe( 'TableUtils', () => {
 					[ '00', '01' ],
 					[ '20', '21' ]
 				], { headingRows: 1 } ) );
+			} );
+
+			it( 'should change heading rows if removing a heading row (and cell below is row-spanned)', () => {
+				setData( model, modelTable( [
+					[ '00', '01' ],
+					[ '10', { contents: '11', rowspan: 2 } ],
+					[ '20' ]
+				], { headingRows: 1 } ) );
+
+				tableUtils.removeRows( root.getChild( 0 ), { at: 0 } );
+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '10', { contents: '11', rowspan: 2 } ],
+					[ '20' ]
+				] ) );
 			} );
 
 			it( 'should decrease rowspan of table cells from previous rows', () => {
@@ -1200,20 +1270,6 @@ describe( 'TableUtils', () => {
 	} );
 
 	describe( 'removeColumns()', () => {
-		beforeEach( () => {
-			return ModelTestEditor.create( {
-				plugins: [ TableUtils ]
-			} ).then( newEditor => {
-				editor = newEditor;
-				model = editor.model;
-				root = model.document.getRoot( 'main' );
-				tableUtils = editor.plugins.get( TableUtils );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
-			} );
-		} );
-
 		describe( 'single row', () => {
 			it( 'should remove a given column', () => {
 				setData( model, modelTable( [
@@ -1368,6 +1424,20 @@ describe( 'TableUtils', () => {
 					[ '21', '22' ]
 				] ) );
 			} );
+
+			it( 'should remove the column properly when multiple rows should be removed (because of to row-spans)', () => {
+				setData( model, modelTable( [
+					[ '00', { contents: '01', rowspan: 3 }, { contents: '02', rowspan: 3 } ],
+					[ '10' ],
+					[ '20' ]
+				] ) );
+
+				tableUtils.removeColumns( root.getNodeByPath( [ 0 ] ), { at: 0 } );
+
+				assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+					[ '01', '02' ]
+				] ) );
+			} );
 		} );
 
 		describe( 'multiple columns', () => {
@@ -1454,6 +1524,72 @@ describe( 'TableUtils', () => {
 					[ '22' ]
 				] ) );
 			} );
+		} );
+	} );
+
+	describe( 'createTable()', () => {
+		it( 'should create table', () => {
+			setData( model, '[]' );
+
+			model.change( writer => {
+				const table = tableUtils.createTable( writer, { rows: 3, columns: 2 } );
+
+				model.insertContent( table, model.document.selection.focus );
+			} );
+
+			assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+				[ '', '' ],
+				[ '', '' ],
+				[ '', '' ]
+			] ) );
+		} );
+
+		it( 'should create table with heading rows', () => {
+			setData( model, '[]' );
+
+			model.change( writer => {
+				const table = tableUtils.createTable( writer, { rows: 3, columns: 2, headingRows: 1 } );
+
+				model.insertContent( table, model.document.selection.focus );
+			} );
+
+			assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+				[ '', '' ],
+				[ '', '' ],
+				[ '', '' ]
+			], { headingRows: 1 } ) );
+		} );
+
+		it( 'should create table with heading columns', () => {
+			setData( model, '[]' );
+
+			model.change( writer => {
+				const table = tableUtils.createTable( writer, { rows: 3, columns: 2, headingColumns: 1 } );
+
+				model.insertContent( table, model.document.selection.focus );
+			} );
+
+			assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+				[ '', '' ],
+				[ '', '' ],
+				[ '', '' ]
+			], { headingColumns: 1 } ) );
+		} );
+
+		it( 'should create table with heading rows and columns', () => {
+			setData( model, '[]' );
+
+			model.change( writer => {
+				const table = tableUtils.createTable( writer, { rows: 3, columns: 2, headingRows: 2, headingColumns: 1 } );
+
+				model.insertContent( table, model.document.selection.focus );
+			} );
+
+			assertEqualMarkup( getData( model, { withoutSelection: true } ), modelTable( [
+				[ '', '' ],
+				[ '', '' ],
+				[ '', '' ]
+			], { headingRows: 2, headingColumns: 1 } ) );
 		} );
 	} );
 } );

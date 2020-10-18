@@ -322,7 +322,7 @@ export default class ProductPreviewEditing extends Plugin {
 				name: 'section',
 				classes: 'product'
 			},
-			model: ( viewElement, modelWriter ) => {
+			model: ( viewElement, { writer: modelWriter } ) => {
 				// Read the "data-id" attribute from the view and set it as the "id" in the model.
 				return modelWriter.createElement( 'productPreview', {
 					id: parseInt( viewElement.getAttribute( 'data-id' ) )
@@ -333,7 +333,7 @@ export default class ProductPreviewEditing extends Plugin {
 		// <productPreview> converters (model → data view)
 		conversion.for( 'dataDowncast' ).elementToElement( {
 			model: 'productPreview',
-			view: ( modelElement, viewWriter ) => {
+			view: ( modelElement, { writer: viewWriter } ) => {
 				// In the data view, the model <productPreview> corresponds to:
 				//
 				// <section class="product" data-id="..."></section>
@@ -347,7 +347,7 @@ export default class ProductPreviewEditing extends Plugin {
 		// <productPreview> converters (model → editing view)
 		conversion.for( 'editingDowncast' ).elementToElement( {
 			model: 'productPreview',
-			view: ( modelElement, viewWriter ) => {
+			view: ( modelElement, { writer: viewWriter } ) => {
 				// In the editing view, the model <productPreview> corresponds to:
 				//
 				// <section class="product" data-id="...">
@@ -365,17 +365,13 @@ export default class ProductPreviewEditing extends Plugin {
 
 				// The inner <div class="product__react-wrapper"></div> element.
 				// This element will host a React <ProductPreview /> component.
-				const reactWrapper = viewWriter.createUIElement( 'div', {
+				const reactWrapper = viewWriter.createRawElement( 'div', {
 					class: 'product__react-wrapper'
-				}, function( domDocument ) {
-					const domElement = this.toDomElement( domDocument );
-
+				}, function( domElement ) {
 					// This the place where React renders the actual product preview hosted
 					// by a UIElement in the view. You are using a function (renderer) passed as
 					// editor.config.products#productRenderer.
 					renderProduct( id, domElement );
-
-					return domElement;
 				} );
 
 				viewWriter.insert( viewWriter.createPositionAt( section, 0 ), reactWrapper );
@@ -1141,7 +1137,7 @@ export default class ProductPreviewEditing extends Plugin {
 				name: 'section',
 				classes: 'product'
 			},
-			model: ( viewElement, modelWriter ) => {
+			model: ( viewElement, { writer: modelWriter } ) => {
 				// Read the "data-id" attribute from the view and set it as the "id" in the model.
 				return modelWriter.createElement( 'productPreview', {
 					id: parseInt( viewElement.getAttribute( 'data-id' ) )
@@ -1152,7 +1148,7 @@ export default class ProductPreviewEditing extends Plugin {
 		// <productPreview> converters (model → data view)
 		conversion.for( 'dataDowncast' ).elementToElement( {
 			model: 'productPreview',
-			view: ( modelElement, viewWriter ) => {
+			view: ( modelElement, { writer: viewWriter } ) => {
 				// In the data view, the model <productPreview> corresponds to:
 				//
 				// <section class="product" data-id="..."></section>
@@ -1166,7 +1162,7 @@ export default class ProductPreviewEditing extends Plugin {
 		// <productPreview> converters (model → editing view)
 		conversion.for( 'editingDowncast' ).elementToElement( {
 			model: 'productPreview',
-			view: ( modelElement, viewWriter ) => {
+			view: ( modelElement, { writer: viewWriter } ) => {
 				// In the editing view, the model <productPreview> corresponds to:
 				//
 				// <section class="product" data-id="...">
@@ -1184,17 +1180,13 @@ export default class ProductPreviewEditing extends Plugin {
 
 				// The inner <div class="product__react-wrapper"></div> element.
 				// This element will host a React <ProductPreview /> component.
-				const reactWrapper = viewWriter.createUIElement( 'div', {
+				const reactWrapper = viewWriter.createRawElement( 'div', {
 					class: 'product__react-wrapper'
-				}, function( domDocument ) {
-					const domElement = this.toDomElement( domDocument );
-
+				}, function( domElement ) {
 					// This the place where React renders the actual product preview hosted
 					// by a UIElement in the view. You are using a function (renderer) passed as
 					// editor.config.products#productRenderer.
 					renderProduct( id, domElement );
-
-					return domElement;
 				} );
 
 				viewWriter.insert( viewWriter.createPositionAt( section, 0 ), reactWrapper );

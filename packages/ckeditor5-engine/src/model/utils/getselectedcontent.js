@@ -70,10 +70,10 @@ export default function getSelectedContent( model, selection ) {
 
 		// Clone the whole contents.
 		for ( const item of flatSubtreeRange.getItems( { shallow: true } ) ) {
-			if ( item.is( 'textProxy' ) ) {
+			if ( item.is( '$textProxy' ) ) {
 				writer.appendText( item.data, item.getAttributes(), frag );
 			} else {
-				writer.append( item._clone( true ), frag );
+				writer.append( writer.cloneElement( item, true ), frag );
 			}
 		}
 

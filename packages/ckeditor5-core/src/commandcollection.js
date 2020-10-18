@@ -51,6 +51,7 @@ export default class CommandCollection {
 	 *
 	 * @param {String} commandName The name of the command.
 	 * @param {*} [...commandParams] Command parameters.
+	 * @returns {*} The value returned by the {@link module:core/command~Command#execute `command.execute()`}.
 	 */
 	execute( commandName, ...args ) {
 		const command = this.get( commandName );
@@ -62,10 +63,10 @@ export default class CommandCollection {
 			 * @error commandcollection-command-not-found
 			 * @param {String} commandName Name of the command.
 			 */
-			throw new CKEditorError( 'commandcollection-command-not-found: Command does not exist.', this, { commandName } );
+			throw new CKEditorError( 'commandcollection-command-not-found', this, { commandName } );
 		}
 
-		command.execute( ...args );
+		return command.execute( ...args );
 	}
 
 	/**

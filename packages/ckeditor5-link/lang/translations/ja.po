@@ -28,6 +28,10 @@ msgctxt "Label for the URL input in the Link URL editing balloon."
 msgid "Link URL"
 msgstr "リンクURL"
 
+msgctxt "Label for the image link button."
+msgid "Link image"
+msgstr "リンク画像"
+
 msgctxt "Button opening the Link URL editing balloon."
 msgid "Edit link"
 msgstr "リンクを編集"
@@ -42,8 +46,8 @@ msgstr "リンクにURLが設定されていません"
 
 msgctxt "The label of the switch button that controls whether the edited link will open in a new tab."
 msgid "Open in a new tab"
-msgstr ""
+msgstr "新しいタブで開く"
 
 msgctxt "The label of the switch button that controls whether the edited link refers to downloadable resource."
 msgid "Downloadable"
-msgstr ""
+msgstr "ダウンロード可能"

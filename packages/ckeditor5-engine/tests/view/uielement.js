@@ -37,7 +37,7 @@ describe( 'UIElement', () => {
 		it( 'should throw if child elements are passed to constructor', () => {
 			expectToThrowCKEditorError( () => {
 				new UIElement( doc, 'img', null, [ new Element( doc, 'i' ) ] ); // eslint-disable-line no-new
-			}, 'view-uielement-cannot-add: Cannot add child nodes to UIElement instance.' );
+			}, 'view-uielement-cannot-add' );
 		} );
 	} );
 
@@ -59,8 +59,6 @@ describe( 'UIElement', () => {
 			expect( el.is( 'view:node' ) ).to.be.true;
 			expect( el.is( 'element', 'span' ) ).to.be.true;
 			expect( el.is( 'view:element', 'span' ) ).to.be.true;
-			expect( el.is( 'span' ) ).to.be.true;
-			expect( el.is( 'view:span' ) ).to.be.true;
 		} );
 
 		it( 'should return false for other accept values', () => {
@@ -68,10 +66,10 @@ describe( 'UIElement', () => {
 			expect( el.is( 'view:uiElement', 'p' ) ).to.be.false;
 			expect( el.is( 'element', 'p' ) ).to.be.false;
 			expect( el.is( 'view:element', 'p' ) ).to.be.false;
-			expect( el.is( 'p' ) ).to.be.false;
+			expect( el.is( 'element', 'p' ) ).to.be.false;
 			expect( el.is( 'view:p' ) ).to.be.false;
-			expect( el.is( 'text' ) ).to.be.false;
-			expect( el.is( 'textProxy' ) ).to.be.false;
+			expect( el.is( '$text' ) ).to.be.false;
+			expect( el.is( '$textProxy' ) ).to.be.false;
 			expect( el.is( 'containerElement' ) ).to.be.false;
 			expect( el.is( 'attributeElement' ) ).to.be.false;
 			expect( el.is( 'emptyElement' ) ).to.be.false;
@@ -80,6 +78,8 @@ describe( 'UIElement', () => {
 			expect( el.is( 'model:element' ) ).to.be.false;
 			expect( el.is( 'model:span' ) ).to.be.false;
 			expect( el.is( 'model:node' ) ).to.be.false;
+			expect( el.is( 'node', 'span' ) ).to.be.false;
+			expect( el.is( 'view:node', 'span' ) ).to.be.false;
 		} );
 	} );
 
@@ -87,7 +87,7 @@ describe( 'UIElement', () => {
 		it( 'should throw when try to append new child element', () => {
 			expectToThrowCKEditorError( () => {
 				uiElement._appendChild( new Element( doc, 'i' ) );
-			}, 'view-uielement-cannot-add: Cannot add child nodes to UIElement instance.' );
+			}, 'view-uielement-cannot-add' );
 		} );
 	} );
 
@@ -95,7 +95,7 @@ describe( 'UIElement', () => {
 		it( 'should throw when try to insert new child element', () => {
 			expectToThrowCKEditorError( () => {
 				uiElement._insertChild( 0, new Element( doc, 'i' ) );
-			}, 'view-uielement-cannot-add: Cannot add child nodes to UIElement instance.' );
+			}, 'view-uielement-cannot-add' );
 		} );
 	} );
 

@@ -16,6 +16,13 @@ The {@link module:code-block/codeblock~CodeBlock} feature allows inserting and e
 
 {@snippet features/code-block}
 
+## Related features
+
+Here are some CKEditor 5 features that you may find helpfully similar:
+* {@link features/basic-styles Basic text styles} &ndash; Use the `code` formatting for short inline code chunks.
+* {@link features/block-quote Block quote} &ndash; Include block quotations or pull quotes in your rich-text content.
+* {@link features/indent Block indentation} &ndash; Set indentation for text blocks such as paragraphs or lists.
+
 ## Configuring code block languages
 
 Each code block can be assigned a programming language. The language of the code block is represented as a CSS class of the `<code>` element, both when editing and in the editor data:
@@ -197,4 +204,4 @@ The {@link module:code-block/codeblock~CodeBlock} plugin registers:
 
 ## Contribute
 
-The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5-code-block.
+The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-code-block.

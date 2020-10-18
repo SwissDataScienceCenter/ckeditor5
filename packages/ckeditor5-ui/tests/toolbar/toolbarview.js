@@ -64,7 +64,7 @@ describe( 'ToolbarView', () => {
 				expect( view.options ).to.deep.equal( {} );
 			} );
 
-			it( 'should be an empty object if none were passed', () => {
+			it( 'should be an empty object if other options were passed', () => {
 				const options = {
 					foo: 'bar'
 				};
@@ -421,7 +421,8 @@ describe( 'ToolbarView', () => {
 			sinon.assert.calledOnce( consoleWarnStub );
 			sinon.assert.calledWithExactly( consoleWarnStub,
 				sinon.match( /^toolbarview-item-unavailable/ ),
-				{ name: 'baz' }
+				sinon.match( { name: 'baz' } ),
+				sinon.match.string // Link to the documentation.
 			);
 		} );
 	} );
@@ -574,6 +575,17 @@ describe( 'ToolbarView', () => {
 				sinon.assert.calledTwice( view._behavior._updateGrouping );
 
 				expect( ungroupedItems.map( i => i ) ).to.have.ordered.members( [ itemB, itemD ] );
+			} );
+
+			it( 'doesn\'t throw when removing the first of grouped items', () => { // (#7655)
+				const items = [ focusable(), focusable(), focusable(), focusable() ];
+				view.element.style.width = '200px';
+				view.items.addMany( items );
+
+				view.items.remove( 1 );
+
+				expect( ungroupedItems.map( i => i ) ).to.have.ordered.members( [ items[ 0 ] ] );
+				expect( groupedItems.map( i => i ) ).to.have.ordered.members( [ items[ 2 ], items[ 3 ] ] );
 			} );
 		} );
 
@@ -816,6 +828,47 @@ describe( 'ToolbarView', () => {
 
 				expect( ungroupedItems ).to.have.length( 5 );
 				expect( groupedItems ).to.have.length( 0 );
+			} );
+
+			it( 'should fire the "groupedItemsUpdate" event on the toolbar when some item is grouped or ungrouped', () => {
+				const updateSpy = sinon.spy();
+
+				view.on( 'groupedItemsUpdate', updateSpy );
+
+				view.element.style.width = '200px';
+
+				view.items.add( focusable() );
+				view.items.add( focusable() );
+				view.items.add( focusable() );
+				view.items.add( focusable() );
+				view.items.add( focusable() );
+
+				resizeCallback( [ {
+					target: view.element,
+					contentRect: new Rect( view.element )
+				} ] );
+
+				sinon.assert.calledOnce( updateSpy );
+
+				// This 10px is not enough to ungroup an item.
+				view.element.style.width = '210px';
+
+				resizeCallback( [ {
+					target: view.element,
+					contentRect: new Rect( view.element )
+				} ] );
+
+				sinon.assert.calledOnce( updateSpy );
+
+				// But this is not enough to ungroup some items.
+				view.element.style.width = '300px';
+
+				resizeCallback( [ {
+					target: view.element,
+					contentRect: new Rect( view.element )
+				} ] );
+
+				sinon.assert.calledTwice( updateSpy );
 			} );
 		} );
 

@@ -9,6 +9,7 @@
 
 import { getFillerOffset } from '@ckeditor/ckeditor5-engine/src/view/containerelement';
 import ButtonView from '@ckeditor/ckeditor5-ui/src/button/buttonview';
+import TreeWalker from '@ckeditor/ckeditor5-engine/src/model/treewalker';
 
 /**
  * Creates a list item {@link module:engine/view/containerelement~ContainerElement}.
@@ -26,8 +27,8 @@ export function createViewListItemElement( writer ) {
 
 /**
  * Helper function that creates a `<ul><li></li></ul>` or (`<ol>`) structure out of the given `modelItem` model `listItem` element.
- * Then, it binds the created view list item (<li>) with the model `listItem` element.
- * The function then returns the created view list item (<li>).
+ * Then, it binds the created view list item (`<li>`) with the model `listItem` element.
+ * The function then returns the created view list item (`<li>`).
  *
  * @param {module:engine/model/item~Item} modelItem Model list item.
  * @param {module:engine/conversion/upcastdispatcher~UpcastConversionApi} conversionApi Conversion interface.
@@ -88,6 +89,19 @@ export function injectViewList( modelItem, injectedItem, conversionApi, model ) 
 			// If it is a list item, it has to have a lower indent.
 			// It means that the inserted item should be added to it as its nested item.
 			insertPosition = mapper.toViewPosition( model.createPositionAt( prevItem, 'end' ) );
+
+			// There could be some not mapped elements (eg. span in to-do list) but we need to insert
+			// a nested list directly inside the li element.
+			const mappedViewAncestor = mapper.findMappedViewAncestor( insertPosition );
+			const nestedList = findNestedList( mappedViewAncestor );
+
+			// If there already is some nested list, then use it's position.
+			if ( nestedList ) {
+				insertPosition = viewWriter.createPositionBefore( nestedList );
+			} else {
+				// Else just put new list on the end of list item content.
+				insertPosition = viewWriter.createPositionAt( mappedViewAncestor, 'end' );
+			}
 		} else {
 			// The previous item is not a list item (or does not exist at all).
 			// Just map the position and insert the view item at the mapped position.
@@ -108,7 +122,7 @@ export function injectViewList( modelItem, injectedItem, conversionApi, model ) 
 		const walker = walkerBoundaries.getWalker( { ignoreElementEnd: true } );
 
 		for ( const value of walker ) {
-			if ( value.item.is( 'li' ) ) {
+			if ( value.item.is( 'element', 'li' ) ) {
 				const breakPosition = viewWriter.breakContainer( viewWriter.createPositionBefore( value.item ) );
 				const viewList = value.item.parent;
 
@@ -122,7 +136,7 @@ export function injectViewList( modelItem, injectedItem, conversionApi, model ) 
 	} else {
 		const nextViewList = injectedList.nextSibling;
 
-		if ( nextViewList && ( nextViewList.is( 'ul' ) || nextViewList.is( 'ol' ) ) ) {
+		if ( nextViewList && ( nextViewList.is( 'element', 'ul' ) || nextViewList.is( 'element', 'ol' ) ) ) {
 			let lastSubChild = null;
 
 			for ( const child of nextViewList.getChildren() ) {
@@ -194,6 +208,7 @@ export function positionAfterUiElements( viewPosition ) {
  * @param {Boolean} [options.sameIndent=false] Whether the sought sibling should have the same indentation.
  * @param {Boolean} [options.smallerIndent=false] Whether the sought sibling should have a smaller indentation.
  * @param {Number} [options.listIndent] The reference indentation.
+ * @param {'forward'|'backward'} [options.direction='backward'] Walking direction.
  * @returns {module:engine/model/item~Item|null}
  */
 export function getSiblingListItem( modelItem, options ) {
@@ -210,7 +225,11 @@ export function getSiblingListItem( modelItem, options ) {
 			return item;
 		}
 
-		item = item.previousSibling;
+		if ( options.direction === 'forward' ) {
+			item = item.nextSibling;
+		} else {
+			item = item.previousSibling;
+		}
 	}
 
 	return null;
@@ -248,6 +267,103 @@ export function createUIComponent( editor, commandName, label, icon ) {
 
 		return buttonView;
 	} );
+}
+
+/**
+ * Returns a first list view element that is direct child of the given view element.
+ *
+ * @param {module:engine/view/element~Element} viewElement
+ * @return {module:engine/view/element~Element|null}
+ */
+export function findNestedList( viewElement ) {
+	for ( const node of viewElement.getChildren() ) {
+		if ( node.name == 'ul' || node.name == 'ol' ) {
+			return node;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Returns an array with all `listItem` elements that represents the same list.
+ *
+ * It means that values for `listIndent`, `listType`, and `listStyle` for all items are equal.
+ *
+ * @param {module:engine/model/position~Position} position Starting position.
+ * @param {'forward'|'backward'} direction Walking direction.
+ * @returns {Array.<module:engine/model/element~Element>}
+ */
+export function getSiblingNodes( position, direction ) {
+	const items = [];
+	const listItem = position.parent;
+	const walkerOptions = {
+		ignoreElementEnd: true,
+		startPosition: position,
+		shallow: true,
+		direction
+	};
+	const limitIndent = listItem.getAttribute( 'listIndent' );
+	const nodes = [ ...new TreeWalker( walkerOptions ) ]
+		.filter( value => value.item.is( 'element' ) )
+		.map( value => value.item );
+
+	for ( const element of nodes ) {
+		// If found something else than `listItem`, we're out of the list scope.
+		if ( !element.is( 'element', 'listItem' ) ) {
+			break;
+		}
+
+		// If current parsed item has lower indent that element that the element that was a starting point,
+		// it means we left a nested list. Abort searching items.
+		//
+		// ■ List item 1.       [listIndent=0]
+		//     ○ List item 2.[] [listIndent=1], limitIndent = 1,
+		//     ○ List item 3.   [listIndent=1]
+		// ■ List item 4.       [listIndent=0]
+		//
+		// Abort searching when leave nested list.
+		if ( element.getAttribute( 'listIndent' ) < limitIndent ) {
+			break;
+		}
+
+		// ■ List item 1.[]     [listIndent=0] limitIndent = 0,
+		//     ○ List item 2.   [listIndent=1]
+		//     ○ List item 3.   [listIndent=1]
+		// ■ List item 4.       [listIndent=0]
+		//
+		// Ignore nested lists.
+		if ( element.getAttribute( 'listIndent' ) > limitIndent ) {
+			continue;
+		}
+
+		// ■ List item 1.[]  [listType=bulleted]
+		// 1. List item 2.   [listType=numbered]
+		// 2.List item 3.    [listType=numbered]
+		//
+		// Abort searching when found a different kind of a list.
+		if ( element.getAttribute( 'listType' ) !== listItem.getAttribute( 'listType' ) ) {
+			break;
+		}
+
+		// ■ List item 1.[]  [listType=bulleted]
+		// ■ List item 2.    [listType=bulleted]
+		// ○ List item 3.    [listType=bulleted]
+		// ○ List item 4.    [listType=bulleted]
+		//
+		// Abort searching when found a different list style.
+		if ( element.getAttribute( 'listStyle' ) !== listItem.getAttribute( 'listStyle' ) ) {
+			break;
+		}
+
+		if ( direction === 'backward' ) {
+			items.unshift( element );
+		} else {
+			items.push( element );
+		}
+	}
+
+	return items;
 }
 
 // Implementation of getFillerOffset for view list item element.

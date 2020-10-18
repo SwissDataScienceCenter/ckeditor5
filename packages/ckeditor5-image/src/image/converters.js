@@ -55,13 +55,9 @@ export function viewFigureToModel() {
 		}
 
 		// Convert rest of the figure element's children as an image children.
-		conversionApi.convertChildren( data.viewItem, conversionApi.writer.createPositionAt( modelImage, 0 ) );
+		conversionApi.convertChildren( data.viewItem, modelImage );
 
-		// Set image range as conversion result.
-		data.modelRange = conversionResult.modelRange;
-
-		// Continue conversion where image conversion ends.
-		data.modelCursor = conversionResult.modelCursor;
+		conversionApi.updateConversionResult( modelImage, data );
 	}
 }
 
@@ -125,10 +121,6 @@ export function modelToViewAttributeConverter( attributeKey ) {
 		const figure = conversionApi.mapper.toViewElement( data.item );
 		const img = getViewImgFromWidget( figure );
 
-		if ( data.attributeNewValue !== null ) {
-			viewWriter.setAttribute( data.attributeKey, data.attributeNewValue, img );
-		} else {
-			viewWriter.removeAttribute( data.attributeKey, img );
-		}
+		viewWriter.setAttribute( data.attributeKey, data.attributeNewValue || '', img );
 	}
 }

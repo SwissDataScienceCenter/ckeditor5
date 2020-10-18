@@ -43,6 +43,7 @@ describe( 'Model', () => {
 
 		it( 'registers $text to the schema', () => {
 			expect( schema.isRegistered( '$text' ) ).to.be.true;
+			expect( schema.isContent( '$text' ) ).to.be.true;
 			expect( schema.checkChild( [ '$block' ], '$text' ) ).to.be.true;
 		} );
 
@@ -338,6 +339,7 @@ describe( 'Model', () => {
 		it( 'should throw the original CKEditorError error if it was thrown inside the `change()` block', () => {
 			expectToThrowCKEditorError( () => {
 				model.change( () => {
+					// eslint-disable-next-line ckeditor5-rules/ckeditor-error-message
 					throw new CKEditorError( 'foo', null, { foo: 1 } );
 				} );
 			}, /foo/, null, { foo: 1 } );
@@ -354,6 +356,7 @@ describe( 'Model', () => {
 		} );
 
 		it( 'should throw the original CKEditorError error if it was thrown inside the `enqueueChange()` block', () => {
+			// eslint-disable-next-line ckeditor5-rules/ckeditor-error-message
 			const err = new CKEditorError( 'foo', null, { foo: 1 } );
 
 			expectToThrowCKEditorError( () => {
@@ -535,6 +538,10 @@ describe( 'Model', () => {
 			schema.register( 'image', {
 				isObject: true
 			} );
+			schema.register( 'content', {
+				inheritAllFrom: '$block',
+				isContent: true
+			} );
 			schema.extend( 'image', { allowIn: 'div' } );
 			schema.register( 'listItem', {
 				inheritAllFrom: '$block'
@@ -544,15 +551,19 @@ describe( 'Model', () => {
 				model,
 
 				'<div>' +
-				'<paragraph></paragraph>' +
+					'<paragraph></paragraph>' +
 				'</div>' +
 				'<paragraph>foo</paragraph>' +
 				'<div>' +
-				'<image></image>' +
+					'<image></image>' +
 				'</div>' +
 				'<listItem></listItem>' +
 				'<listItem></listItem>' +
-				'<listItem></listItem>'
+				'<listItem></listItem>' +
+				'<content>foo</content>' +
+				'<div>' +
+					'<content></content>' +
+				'</div>'
 			);
 
 			root = model.document.getRoot();
@@ -659,6 +670,8 @@ describe( 'Model', () => {
 
 			expect( model.hasContent( pEmpty ) ).to.be.false;
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
 		} );
 
 		it( 'should return false for empty element with marker (usingOperation=true, affectsData=false)', () => {
@@ -672,6 +685,8 @@ describe( 'Model', () => {
 
 			expect( model.hasContent( pEmpty ) ).to.be.false;
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
 		} );
 
 		it( 'should return false (ignoreWhitespaces) for empty text with marker (usingOperation=false, affectsData=false)', () => {
@@ -688,6 +703,7 @@ describe( 'Model', () => {
 			} );
 
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true, ignoreMarkers: true } ) ).to.be.false;
 		} );
 
 		it( 'should return true for empty text with marker (usingOperation=false, affectsData=false)', () => {
@@ -704,6 +720,8 @@ describe( 'Model', () => {
 			} );
 
 			expect( model.hasContent( pEmpty ) ).to.be.true;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.true;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
 		} );
 
 		it( 'should return false for empty element with marker (usingOperation=false, affectsData=true)', () => {
@@ -717,6 +735,8 @@ describe( 'Model', () => {
 
 			expect( model.hasContent( pEmpty ) ).to.be.false;
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
 		} );
 
 		it( 'should return false for empty element with marker (usingOperation=true, affectsData=true)', () => {
@@ -730,6 +750,8 @@ describe( 'Model', () => {
 
 			expect( model.hasContent( pEmpty ) ).to.be.false;
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.false;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
 		} );
 
 		it( 'should return true (ignoreWhitespaces) for empty text with marker (usingOperation=false, affectsData=true)', () => {
@@ -747,6 +769,21 @@ describe( 'Model', () => {
 
 			expect( model.hasContent( pEmpty ) ).to.be.true;
 			expect( model.hasContent( pEmpty, { ignoreWhitespaces: true } ) ).to.be.true;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true } ) ).to.be.true;
+			expect( model.hasContent( pEmpty, { ignoreMarkers: true, ignoreWhitespaces: true } ) ).to.be.false;
+		} );
+
+		it( 'should return true for an item registered as a content (isContent=true, isObject=false) in the schema', () => {
+			const contentElement = root.getChild( 6 );
+
+			expect( model.hasContent( contentElement ) ).to.be.true;
+		} );
+
+		it( 'should return true if a range contains an item registered as a content (isContent=true, isObject=false) in the schema', () => {
+			// [<div><content></content></div>]
+			const range = new ModelRange( ModelPosition._createAt( root, 6 ), ModelPosition._createAt( root, 7 ) );
+
+			expect( model.hasContent( range ) ).to.be.true;
 		} );
 	} );
 

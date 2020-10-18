@@ -16,6 +16,7 @@ import Italic from '@ckeditor/ckeditor5-basic-styles/src/italic';
 import List from '@ckeditor/ckeditor5-list/src/list';
 import global from '@ckeditor/ckeditor5-utils/src/dom/global';
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
+import Table from '@ckeditor/ckeditor5-table/src/table';
 import Widget from '@ckeditor/ckeditor5-widget/src/widget';
 import { toWidget } from '@ckeditor/ckeditor5-widget/src/utils';
 
@@ -37,11 +38,11 @@ class FancyWidget extends Plugin {
 
 		conversion.for( 'editingDowncast' ).elementToElement( {
 			model: 'fancywidget',
-			view: ( modelItem, viewWriter ) => {
-				const widgetElement = viewWriter.createContainerElement( 'figure', { class: 'fancy-widget' } );
-				viewWriter.insert( viewWriter.createPositionAt( widgetElement, 0 ), viewWriter.createText( 'widget' ) );
+			view: ( modelItem, { writer } ) => {
+				const widgetElement = writer.createContainerElement( 'figure', { class: 'fancy-widget' } );
+				writer.insert( writer.createPositionAt( widgetElement, 0 ), writer.createText( 'widget' ) );
 
-				return toWidget( widgetElement, viewWriter );
+				return toWidget( widgetElement, writer );
 			}
 		} );
 
@@ -53,8 +54,8 @@ class FancyWidget extends Plugin {
 }
 
 ClassicEditor.create( global.document.querySelector( '#editor' ), {
-	plugins: [ Enter, Typing, Paragraph, Undo, Heading, Bold, Italic, List, FancyWidget ],
-	toolbar: [ 'heading', '|', 'undo', 'redo', 'bold', 'italic', 'numberedList', 'bulletedList' ]
+	plugins: [ Enter, Typing, Paragraph, Undo, Heading, Bold, Italic, List, Table, FancyWidget ],
+	toolbar: [ 'heading', '|', 'undo', 'redo', 'bold', 'italic', 'numberedList', 'bulletedList', 'insertTable' ]
 } )
 	.then( editor => {
 		window.editor = editor;

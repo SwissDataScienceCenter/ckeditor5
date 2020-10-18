@@ -62,7 +62,7 @@ describe( 'Schema', () => {
 
 			expectToThrowCKEditorError( () => {
 				schema.register( 'foo' );
-			}, /^schema-cannot-register-item-twice:/, schema );
+			}, 'schema-cannot-register-item-twice', schema );
 		} );
 	} );
 
@@ -91,7 +91,7 @@ describe( 'Schema', () => {
 		it( 'throws when trying to extend a not yet registered item', () => {
 			expectToThrowCKEditorError( () => {
 				schema.extend( 'foo' );
-			}, /^schema-cannot-extend-missing-item:/, schema );
+			}, 'schema-cannot-extend-missing-item', schema );
 		} );
 	} );
 
@@ -401,9 +401,52 @@ describe( 'Schema', () => {
 			expect( schema.isObject( 'foo' ) ).to.be.true;
 		} );
 
+		it( 'returns true if an item is a limit, selectable, and a content at once (but not explicitely an object)', () => {
+			schema.register( 'foo', {
+				isLimit: true,
+				isSelectable: true,
+				isContent: true
+			} );
+
+			expect( schema.isObject( 'foo' ) ).to.be.true;
+		} );
+
 		it( 'returns false if an item was registered as a limit (because not all limits are objects)', () => {
 			schema.register( 'foo', {
 				isLimit: true
+			} );
+
+			expect( schema.isObject( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'returns false if an item is a limit and a selectable but not a content ' +
+			'(because an object must always find its way into data regardless of its children)',
+		() => {
+			schema.register( 'foo', {
+				isLimit: true,
+				isSelectable: true
+			} );
+
+			expect( schema.isObject( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'returns false if an item is a limit and content but not a selectable ' +
+			'(because the user must always be able to select an object)',
+		() => {
+			schema.register( 'foo', {
+				isLimit: true,
+				isContent: true
+			} );
+
+			expect( schema.isObject( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'returns false if an item is a selectable and a content but not a limit ' +
+			'(because an object should never be split or crossed by the selection)',
+		() => {
+			schema.register( 'foo', {
+				isSelectable: true,
+				isContent: true
 			} );
 
 			expect( schema.isObject( 'foo' ) ).to.be.false;
@@ -458,6 +501,76 @@ describe( 'Schema', () => {
 			const stub = sinon.stub( schema, 'getDefinition' ).returns( { isInline: true } );
 
 			expect( schema.isInline( 'foo' ) ).to.be.true;
+			expect( stub.calledOnce ).to.be.true;
+		} );
+	} );
+
+	describe( 'isSelectable()', () => {
+		it( 'should return true if an item was registered as a selectable', () => {
+			schema.register( 'foo', {
+				isSelectable: true
+			} );
+
+			expect( schema.isSelectable( 'foo' ) ).to.be.true;
+		} );
+
+		it( 'should return true if an item was registered as an object (because all objects are selectables)', () => {
+			schema.register( 'foo', {
+				isObject: true
+			} );
+
+			expect( schema.isSelectable( 'foo' ) ).to.be.true;
+		} );
+
+		it( 'should return false if an item was not registered as an object or selectable', () => {
+			schema.register( 'foo' );
+
+			expect( schema.isSelectable( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'should return false if an item was not registered at all', () => {
+			expect( schema.isSelectable( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'uses getDefinition()\'s item to definition normalization', () => {
+			const stub = sinon.stub( schema, 'getDefinition' ).returns( { isSelectable: true } );
+
+			expect( schema.isSelectable( 'foo' ) ).to.be.true;
+			expect( stub.calledOnce ).to.be.true;
+		} );
+	} );
+
+	describe( 'isContent()', () => {
+		it( 'should return true if an item was registered as a content', () => {
+			schema.register( 'foo', {
+				isContent: true
+			} );
+
+			expect( schema.isContent( 'foo' ) ).to.be.true;
+		} );
+
+		it( 'should return true if an item was registered as an object (because all objects are content)', () => {
+			schema.register( 'foo', {
+				isObject: true
+			} );
+
+			expect( schema.isContent( 'foo' ) ).to.be.true;
+		} );
+
+		it( 'should return false if an item was not registered as an object or a content', () => {
+			schema.register( 'foo' );
+
+			expect( schema.isContent( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'should return false if an item was not registered at all', () => {
+			expect( schema.isContent( 'foo' ) ).to.be.false;
+		} );
+
+		it( 'uses getDefinition()\'s item to definition normalization', () => {
+			const stub = sinon.stub( schema, 'getDefinition' ).returns( { isContent: true } );
+
+			expect( schema.isContent( 'foo' ) ).to.be.true;
 			expect( stub.calledOnce ).to.be.true;
 		} );
 	} );
@@ -847,7 +960,7 @@ describe( 'Schema', () => {
 
 			expectToThrowCKEditorError( () => {
 				expect( schema.checkMerge( position ) );
-			}, /^schema-check-merge-no-element-before:/, schema );
+			}, 'schema-check-merge-no-element-before', schema );
 		} );
 
 		it( 'throws an error if the node before the position is not the element', () => {
@@ -865,7 +978,7 @@ describe( 'Schema', () => {
 
 			expectToThrowCKEditorError( () => {
 				expect( schema.checkMerge( position ) );
-			}, /^schema-check-merge-no-element-before:/, schema );
+			}, 'schema-check-merge-no-element-before', schema );
 		} );
 
 		it( 'throws an error if there is no element after the position', () => {
@@ -882,7 +995,7 @@ describe( 'Schema', () => {
 
 			expectToThrowCKEditorError( () => {
 				expect( schema.checkMerge( position ) );
-			}, /^schema-check-merge-no-element-after:/, schema );
+			}, 'schema-check-merge-no-element-after', schema );
 		} );
 
 		it( 'throws an error if the node after the position is not the element', () => {
@@ -900,7 +1013,7 @@ describe( 'Schema', () => {
 
 			expectToThrowCKEditorError( () => {
 				expect( schema.checkMerge( position ) );
-			}, /^schema-check-merge-no-element-before:/, schema );
+			}, 'schema-check-merge-no-element-before', schema );
 		} );
 
 		// This is an invalid case by definition – the baseElement should not contain disallowed elements
@@ -2396,7 +2509,7 @@ describe( 'Schema', () => {
 				expect( schema.checkChild( root1, r1p1 ) ).to.be.true;
 			} );
 
-			it( 'passes $root>paragraph>$text – paragraph inherits allowIn from $block through $block\'s allowWhere', () => {
+			it( 'passes $root>paragraph>$text – paragraph inherits allowed content from $block through $block\'s allowContentOf', () => {
 				schema.register( '$root' );
 				schema.register( '$blockProto' );
 				schema.register( '$block', {
@@ -2411,6 +2524,31 @@ describe( 'Schema', () => {
 				} );
 
 				expect( schema.checkChild( r1p1, r1p1.getChild( 0 ) ) ).to.be.true;
+			} );
+
+			it( 'passes paragraph[align] – paragraph inherits attributes of $block', () => {
+				schema.register( '$block', {
+					allowAttributes: 'align'
+				} );
+				schema.register( 'paragraph', {
+					inheritAllFrom: '$block'
+				} );
+
+				expect( schema.checkAttribute( r1p1, 'align' ) ).to.be.true;
+			} );
+
+			it( 'passes paragraph[align] – paragraph inherits attributes of $block through allowAttributesOf', () => {
+				schema.register( '$blockProto', {
+					allowAttributes: 'align'
+				} );
+				schema.register( '$block', {
+					allowAttributesOf: '$blockProto'
+				} );
+				schema.register( 'paragraph', {
+					inheritAllFrom: '$block'
+				} );
+
+				expect( schema.checkAttribute( r1p1, 'align' ) ).to.be.true;
 			} );
 		} );
 
@@ -2554,33 +2692,6 @@ describe( 'Schema', () => {
 
 			// The support for allowAttributesOf is broken in the similar way as for allowContentOf (see the comment above).
 			// However, those situations are rather theoretical, so we're not going to waste time on them now.
-		} );
-
-		describe( 'inheritAllFrom', () => {
-			it( 'passes paragraph[align] – paragraph inherits attributes of $block', () => {
-				schema.register( '$block', {
-					allowAttributes: 'align'
-				} );
-				schema.register( 'paragraph', {
-					inheritAllFrom: '$block'
-				} );
-
-				expect( schema.checkAttribute( r1p1, 'align' ) ).to.be.true;
-			} );
-
-			it( 'passes paragraph[align] – paragraph inherits attributes of $block through allowAttributesOf', () => {
-				schema.register( '$blockProto', {
-					allowAttributes: 'align'
-				} );
-				schema.register( '$block', {
-					allowAttributesOf: '$blockProto'
-				} );
-				schema.register( 'paragraph', {
-					inheritAllFrom: '$block'
-				} );
-
-				expect( schema.checkAttribute( r1p1, 'align' ) ).to.be.true;
-			} );
 		} );
 
 		describe( 'missing attribute definitions', () => {

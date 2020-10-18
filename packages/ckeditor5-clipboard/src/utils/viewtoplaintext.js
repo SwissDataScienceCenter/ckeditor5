@@ -21,12 +21,15 @@ const smallPaddingElements = [ 'figcaption', 'li' ];
 export default function viewToPlainText( viewItem ) {
 	let text = '';
 
-	if ( viewItem.is( 'text' ) || viewItem.is( 'textProxy' ) ) {
+	if ( viewItem.is( '$text' ) || viewItem.is( '$textProxy' ) ) {
 		// If item is `Text` or `TextProxy` simple take its text data.
 		text = viewItem.data;
-	} else if ( viewItem.is( 'img' ) && viewItem.hasAttribute( 'alt' ) ) {
+	} else if ( viewItem.is( 'element', 'img' ) && viewItem.hasAttribute( 'alt' ) ) {
 		// Special case for images - use alt attribute if it is provided.
 		text = viewItem.getAttribute( 'alt' );
+	} else if ( viewItem.is( 'element', 'br' ) ) {
+		// A soft break should be converted into a single line break (#8045).
+		text = '\n';
 	} else {
 		// Other elements are document fragments, attribute elements or container elements.
 		// They don't have their own text value, so convert their children.

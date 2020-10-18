@@ -165,6 +165,15 @@ export default class BalloonToolbar extends Plugin {
 				} );
 			} );
 		}
+
+		// Listen to the toolbar view and whenever it changes its geometry due to some items being
+		// grouped or ungrouped, update the position of the balloon because a shorter/longer toolbar
+		// means the balloon could be pointing at the wrong place. Once updated, the balloon will point
+		// at the right selection in the content again.
+		// https://github.com/ckeditor/ckeditor5/issues/6444
+		this.listenTo( this.toolbarView, 'groupedItemsUpdate', () => {
+			this._updatePosition();
+		} );
 	}
 
 	/**
@@ -209,6 +218,8 @@ export default class BalloonToolbar extends Plugin {
 	 */
 	show() {
 		const editor = this.editor;
+		const selection = editor.model.document.selection;
+		const schema = editor.model.schema;
 
 		// Do not add the toolbar to the balloon stack twice.
 		if ( this._balloon.hasView( this.toolbarView ) ) {
@@ -216,7 +227,13 @@ export default class BalloonToolbar extends Plugin {
 		}
 
 		// Do not show the toolbar when the selection is collapsed.
-		if ( editor.model.document.selection.isCollapsed ) {
+		if ( selection.isCollapsed ) {
+			return;
+		}
+
+		// Do not show the toolbar when there is more than one range in the selection and they fully contain selectable elements.
+		// See https://github.com/ckeditor/ckeditor5/issues/6443.
+		if ( selectionContainsOnlyMultipleSelectables( selection, schema ) ) {
 			return;
 		}
 
@@ -228,7 +245,7 @@ export default class BalloonToolbar extends Plugin {
 
 		// Update the toolbar position when the editor ui should be refreshed.
 		this.listenTo( this.editor.ui, 'update', () => {
-			this._balloon.updatePosition( this._getBalloonPositionData() );
+			this._updatePosition();
 		} );
 
 		// Add the toolbar to the common editor contextual balloon.
@@ -293,6 +310,18 @@ export default class BalloonToolbar extends Plugin {
 	}
 
 	/**
+	 * Updates the position of the {@link #_balloon} to make up for changes:
+	 *
+	 * * in the geometry of the selection it is attached to (e.g. the selection moved in the viewport or expanded or shrunk),
+	 * * or the geometry of the balloon toolbar itself (e.g. the toolbar has grouped or ungrouped some items and it is shorter or longer).
+	 *
+	 * @private
+	 */
+	_updatePosition() {
+		this._balloon.updatePosition( this._getBalloonPositionData() );
+	}
+
+	/**
 	 * @inheritDoc
 	 */
 	destroy() {
@@ -354,6 +383,26 @@ function getBalloonPositions( isBackward ) {
 		defaultPositions.northEastArrowSouthMiddleEast,
 		defaultPositions.northEastArrowSouthMiddleWest
 	];
+}
+
+// Returns "true" when the selection has multiple ranges and each range contains a selectable element
+// and nothing else.
+//
+// @private
+// @param {module:engine/model/selection~Selection} selection
+// @param {module:engine/model/schema~Schema} schema
+// @returns {Boolean}
+function selectionContainsOnlyMultipleSelectables( selection, schema ) {
+	// It doesn't contain multiple objects if there is only one range.
+	if ( selection.rangeCount === 1 ) {
+		return false;
+	}
+
+	return [ ...selection.getRanges() ].every( range => {
+		const element = range.getContainedElement();
+
+		return element && schema.isSelectable( element );
+	} );
 }
 
 /**

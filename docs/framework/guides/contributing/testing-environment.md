@@ -26,24 +26,25 @@ It accepts the following arguments that must be passed after the `--` option:
 * `--files` &ndash; Specifies test files to run. Accepts a package name or a glob. For example `--files=engine` will run tests from `ckeditor5-engine` package. Read more about the [rules for converting the `--files` option to a glob pattern](https://github.com/ckeditor/ckeditor5-dev/tree/master/packages/ckeditor5-dev-tests#rules-for-converting---files-option-to-glob-pattern).
 * `--browsers` &ndash; Browsers that will be used to run the tests. Defaults to `Chrome`.
 * `--debug` (alias `-d`) &ndash; Allows specifying custom debug flags. For example, the `--debug engine` option uncomments the `// @if CK_DEBUG_ENGINE //` lines in the code. Note that by default `--debug` is set to `true` even if you did not specify it. This enables the base set of debug logs (`// @if CK_DEBUG //`) which should always be enabled in the testing environment. You can completely turn off the debug mode by setting the `--debug false` option.
+* `--port` &ndash; Specifies the port for the server to use. Defaults to `9876`.
 
 ### Examples
 
 Run all tests with the code coverage check of the [`ckeditor5-core`](https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-core/tests) package:
 
-```bash
+```
 yarn run test -c --files=core
 ```
 
 Run and watch the [engine's `view` namespace tests](https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-engine/tests/view) and all the tests in [`ckeditor5-typing`](https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-typing/tests):
 
-```bash
+```
 yarn run test -cw --files=engine/view,typing
 ```
 
 Run the `bold*.js` tests in the [`ckeditor5-basic-styles`](https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-basic-styles/tests) package:
 
-```bash
+```
 yarn run test -cw --files=basic-styles/bold*.js
 ```
 
@@ -53,10 +54,12 @@ In order to start the manual tests server, use the `yarn run manual` task.
 
 The task accepts the following options:
 
-* `--source-map` (alias `-s`) &ndash; Whether to generate useful source maps for the code.
 * `--files` &ndash; Specifies test files to run. Accepts a package name or a glob. For example `--files=ckeditor5` will only run tests from the CKEditor 5 main package. Read more about the [rules for converting the `--files` option to a glob pattern](https://github.com/ckeditor/ckeditor5-dev/tree/master/packages/ckeditor5-dev-tests#rules-for-converting---files-option-to-glob-pattern).
-* `--additionalLanguages="ar,pl,..."` &ndash; Specifies extra languages to the [CKEditor 5 webpack plugin](https://www.npmjs.com/package/@ckeditor/ckeditor5-dev-webpack-plugin). Check out the {@link features/ui-language UI language guide} to learn more.
+* `--language="pl"` &ndash; The main language build in into all test editors, passed to the [CKEditor 5 webpack plugin](https://www.npmjs.com/package/@ckeditor/ckeditor5-dev-webpack-plugin).  Check out the {@link features/ui-language UI language guide} to learn more. When unspecified, `'en'` is passed to the test runner.
+* `--additionalLanguages="ar,pl,..."` &ndash; Specifies extra languages passed to the [CKEditor 5 webpack plugin](https://www.npmjs.com/package/@ckeditor/ckeditor5-dev-webpack-plugin). Check out the {@link features/ui-language UI language guide} to learn more.
 * `--debug` (alias `-d`) &ndash; Allows specifying custom debug flags. For example, the `--debug engine` option uncomments the `// @if CK_DEBUG_ENGINE //` lines in the code. Note that by default `--debug` is set to `true` even if you did not specify it. This enables the base set of debug logs (`// @if CK_DEBUG //`) which should always be enabled in the testing environment. You can completely turn off the debug mode by setting the `--debug false` option.
+* `--port` &ndash; Specifies the port for the server to use. Defaults to `8125`.
+* `--identityFile="/path/to/file.js"` &ndash; Path to the file containing the license key(s) for closed–source features.
 
 It starts the server available at http://localhost:8125.
 

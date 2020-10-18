@@ -34,7 +34,7 @@ import {
  * human–readable label of the language. Used only in the editing.
  * @returns {Function} Returns a conversion callback.
  */
-export function modelToViewCodeBlockInsertion( model, languageDefs, useLabels = false ) {
+export function modelToViewCodeBlockInsertion(model, languageDefs, useLabels = false) {
 	// Language CSS classes:
 	//
 	//		{
@@ -43,7 +43,7 @@ export function modelToViewCodeBlockInsertion( model, languageDefs, useLabels = 
 	//			javascript: 'js',
 	//			...
 	//		}
-	const languagesToClasses = getPropertyAssociation( languageDefs, 'language', 'class' );
+	const languagesToClasses = getPropertyAssociation(languageDefs, 'language', 'class');
 
 	// Language labels:
 	//
@@ -53,33 +53,33 @@ export function modelToViewCodeBlockInsertion( model, languageDefs, useLabels = 
 	//			javascript: 'JavaScript',
 	//			...
 	//		}
-	const languagesToLabels = getPropertyAssociation( languageDefs, 'language', 'label' );
+	const languagesToLabels = getPropertyAssociation(languageDefs, 'language', 'label');
 
-	return ( evt, data, conversionApi ) => {
+	return (evt, data, conversionApi) => {
 		const { writer, mapper, consumable } = conversionApi;
 
-		if ( !consumable.consume( data.item, 'insert' ) ) {
+		if (!consumable.consume(data.item, 'insert')) {
 			return;
 		}
 
-		const codeBlockLanguage = data.item.getAttribute( 'language' );
-		const targetViewPosition = mapper.toViewPosition( model.createPositionBefore( data.item ) );
+		const codeBlockLanguage = data.item.getAttribute('language');
+		const targetViewPosition = mapper.toViewPosition(model.createPositionBefore(data.item));
 		const preAttributes = {};
 
 		// Attributes added only in the editing view.
-		if ( useLabels ) {
-			preAttributes[ 'data-language' ] = languagesToLabels[ codeBlockLanguage ];
+		if (useLabels) {
+			preAttributes['data-language'] = languagesToLabels[codeBlockLanguage];
 			preAttributes.spellcheck = 'false';
 		}
 
-		const pre = writer.createContainerElement( 'pre', preAttributes );
-		const code = writer.createContainerElement( 'code', {
-			class: languagesToClasses[ codeBlockLanguage ] || null
-		} );
+		const pre = writer.createContainerElement('pre', preAttributes);
+		const code = writer.createContainerElement('code', {
+			class: languagesToClasses[codeBlockLanguage] || null
+		});
 
-		writer.insert( writer.createPositionAt( pre, 0 ), code );
-		writer.insert( targetViewPosition, pre );
-		mapper.bindElements( data.item, code );
+		writer.insert(writer.createPositionAt(pre, 0), code);
+		writer.insert(targetViewPosition, pre);
+		mapper.bindElements(data.item, code);
 	};
 }
 
@@ -97,21 +97,21 @@ export function modelToViewCodeBlockInsertion( model, languageDefs, useLabels = 
  * @param {module:engine/model/model~Model} model
  * @returns {Function} Returns a conversion callback.
  */
-export function modelToDataViewSoftBreakInsertion( model ) {
-	return ( evt, data, conversionApi ) => {
-		if ( data.item.parent.name !== 'codeBlock' ) {
+export function modelToDataViewSoftBreakInsertion(model) {
+	return (evt, data, conversionApi) => {
+		if (data.item.parent.name !== 'codeBlock') {
 			return;
 		}
 
 		const { writer, mapper, consumable } = conversionApi;
 
-		if ( !consumable.consume( data.item, 'insert' ) ) {
+		if (!consumable.consume(data.item, 'insert')) {
 			return;
 		}
 
-		const position = mapper.toViewPosition( model.createPositionBefore( data.item ) );
+		const position = mapper.toViewPosition(model.createPositionBefore(data.item));
 
-		writer.insert( position, writer.createText( '\n' ) );
+		writer.insert(position, writer.createText('\n'));
 	};
 }
 
@@ -126,12 +126,12 @@ export function modelToDataViewSoftBreakInsertion( model ) {
  *
  *		<codeBlock language="javascript">foo();<softBreak></softBreak>bar();</codeBlock>
  *
- * @param {module:engine/controller/datacontroller~DataController} dataController
+ * @param {module:engine/view/view~View} editingView
  * @param {Array.<module:code-block/codeblock~CodeBlockLanguageDefinition>} languageDefs The normalized language
  * configuration passed to the feature.
  * @returns {Function} Returns a conversion callback.
  */
-export function dataViewToModelCodeBlockInsertion( dataController, languageDefs ) {
+export function dataViewToModelCodeBlockInsertion(editingView, languageDefs) {
 	// Language names associated with CSS classes:
 	//
 	//		{
@@ -140,115 +140,67 @@ export function dataViewToModelCodeBlockInsertion( dataController, languageDefs 
 	//			js: 'javascript',
 	//			...
 	//		}
-	const classesToLanguages = getPropertyAssociation( languageDefs, 'class', 'language' );
-	const defaultLanguageName = languageDefs[ 0 ].language;
+	const classesToLanguages = getPropertyAssociation(languageDefs, 'class', 'language');
+	const defaultLanguageName = languageDefs[0].language;
 
-	return ( evt, data, conversionApi ) => {
+	return (evt, data, conversionApi) => {
 		const viewItem = data.viewItem;
-		const viewChild = viewItem.getChild( 0 );
+		const viewChild = viewItem.getChild(0);
 
-		if ( !viewChild || !viewChild.is( 'code' ) ) {
+		if (!viewChild || !viewChild.is('element', 'code')) {
 			return;
 		}
 
 		const { consumable, writer } = conversionApi;
 
-		if ( !consumable.test( viewItem, { name: true } ) || !consumable.test( viewChild, { name: true } ) ) {
+		if (!consumable.test(viewItem, { name: true }) || !consumable.test(viewChild, { name: true })) {
 			return;
 		}
 
-		const codeBlock = writer.createElement( 'codeBlock' );
-		const viewChildClasses = [ ...viewChild.getClassNames() ];
+		const codeBlock = writer.createElement('codeBlock');
+		const viewChildClasses = [...viewChild.getClassNames()];
 
 		// As we're to associate each class with a model language, a lack of class (empty class) can be
 		// also associated with a language if the language definition was configured so. Pushing an empty
 		// string to make sure the association will work.
-		if ( !viewChildClasses.length ) {
-			viewChildClasses.push( '' );
+		if (!viewChildClasses.length) {
+			viewChildClasses.push('');
 		}
 
 		// Figure out if any of the <code> element's class names is a valid programming
 		// language class. If so, use it on the model element (becomes the language of the entire block).
-		for ( const className of viewChildClasses ) {
-			const language = classesToLanguages[ className ];
+		for (const className of viewChildClasses) {
+			const language = classesToLanguages[className];
 
-			if ( language ) {
-				writer.setAttribute( 'language', language, codeBlock );
+			if (language) {
+				writer.setAttribute('language', language, codeBlock);
 				break;
 			}
 		}
 
 		// If no language value was set, use the default language from the config.
-		if ( !codeBlock.hasAttribute( 'language' ) ) {
-			writer.setAttribute( 'language', defaultLanguageName, codeBlock );
+		if (!codeBlock.hasAttribute('language')) {
+			writer.setAttribute('language', defaultLanguageName, codeBlock);
 		}
 
-		const stringifiedElement = dataController.processor.toData( viewChild );
-		const textData = extractDataFromCodeElement( stringifiedElement );
-		const fragment = rawSnippetTextToModelDocumentFragment( writer, textData );
+		// HTML elements are invalid content for `<code>`.
+		// Read only text nodes.
+		const textData = [...editingView.createRangeIn(viewChild)]
+			.filter(current => current.type === 'text')
+			.map(({ item }) => item.data)
+			.join('');
+		const fragment = rawSnippetTextToModelDocumentFragment(writer, textData);
 
-		writer.append( fragment, codeBlock );
+		writer.append(fragment, codeBlock);
 
-		// Let's see if the codeBlock can be inserted the current modelCursor.
-		const splitResult = conversionApi.splitToAllowedParent( codeBlock, data.modelCursor );
-
-		// When there is no split result it means that we can't insert element to model tree,
-		// so let's skip it.
-		if ( !splitResult ) {
+		// Let's try to insert code block.
+		if (!conversionApi.safeInsert(codeBlock, data.modelCursor)) {
 			return;
 		}
 
-		// Insert element on allowed position.
-		writer.insert( codeBlock, splitResult.position );
+		consumable.consume(viewItem, { name: true });
+		consumable.consume(viewChild, { name: true });
 
-		consumable.consume( viewItem, { name: true } );
-		consumable.consume( viewChild, { name: true } );
-
-		const parts = conversionApi.getSplitParts( codeBlock );
-
-		// Set conversion result range.
-		data.modelRange = writer.createRange(
-			conversionApi.writer.createPositionBefore( codeBlock ),
-			conversionApi.writer.createPositionAfter( parts[ parts.length - 1 ] )
-		);
-
-		// If we had to split parent to insert our element then we want to continue conversion inside
-		// the split parent.
-		//
-		// before split:
-		//
-		//		<allowed><notAllowed>[]</notAllowed></allowed>
-		//
-		// after split:
-		//
-		//		<allowed>
-		//			<notAllowed></notAllowed>
-		//			<converted></converted>
-		//			<notAllowed>[]</notAllowed>
-		//		</allowed>
-		if ( splitResult.cursorParent ) {
-			data.modelCursor = writer.createPositionAt( splitResult.cursorParent, 0 );
-		} else {
-			// Otherwise just continue after the inserted element.
-			data.modelCursor = data.modelRange.end;
-		}
+		conversionApi.updateConversionResult(codeBlock, data);
 	};
-}
-
-// Returns content of `<pre></pre>` with unescaped html inside.
-//
-// @param {String} stringifiedElement
-function extractDataFromCodeElement( stringifiedElement ) {
-
-	let element = new RegExp( /^<code[^>]*>([\S\s]*)<\/code>$/ ).exec( stringifiedElement );
-
-	if(element !== null){
-		const data = new RegExp( /^<code[^>]*>([\S\s]*)<\/code>$/ ).exec( stringifiedElement )[ 1 ];
-		return data
-			.replace( /&lt;/g, '<' )
-			.replace( /&gt;/g, '>' );
-	} else {
-		return stringifiedElement.split("`").join("");
-	}
-
 }

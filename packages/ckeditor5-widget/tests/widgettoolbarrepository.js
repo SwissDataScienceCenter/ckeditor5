@@ -3,17 +3,22 @@
  * For licensing, see LICENSE.md or https://ckeditor.com/legal/ckeditor-oss-license
  */
 
-/* global document */
+/* global document, console */
 
 import ClassicTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/classictesteditor';
 import BalloonEditor from '@ckeditor/ckeditor5-editor-balloon/src/ballooneditor';
+import BalloonPanelView from '@ckeditor/ckeditor5-ui/src/panel/balloon/balloonpanelview';
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import Bold from '@ckeditor/ckeditor5-basic-styles/src/bold';
 import BlockQuote from '@ckeditor/ckeditor5-block-quote/src/blockquote';
 import Widget from '../src/widget';
 import WidgetToolbarRepository from '../src/widgettoolbarrepository';
-import { isWidget, toWidget } from '../src/utils';
+import {
+	isWidget,
+	toWidget,
+	centeredBalloonPositionForLongWidgets
+} from '../src/utils';
 import ButtonView from '@ckeditor/ckeditor5-ui/src/button/buttonview';
 import View from '@ckeditor/ckeditor5-ui/src/view';
 
@@ -120,6 +125,20 @@ describe( 'WidgetToolbarRepository', () => {
 			expect( toolbarView.element.getAttribute( 'aria-label' ) ).to.equal( 'Custom label' );
 
 			toolbarView.destroy();
+		} );
+
+		it( 'should not register a toolbar when passed an empty collection of the items', () => {
+			const consoleWarnStub = sinon.stub( console, 'warn' );
+
+			widgetToolbarRepository.register( 'fake', {
+				items: [],
+				getRelatedElement: () => null
+			} );
+
+			expect( widgetToolbarRepository._toolbarDefinitions.get( 'fake' ) ).to.be.undefined;
+
+			expect( consoleWarnStub.calledOnce ).to.equal( true );
+			expect( consoleWarnStub.firstCall.args[ 0 ] ).to.match( /^widget-toolbar-no-items/ );
 		} );
 	} );
 
@@ -470,6 +489,40 @@ describe( 'WidgetToolbarRepository', () => {
 
 			expect( balloon.view.pin.lastCall.args[ 0 ].target ).to.equal( newFakeDomElement );
 		} );
+
+		it( 'toolbar should use one of pre-defined positions when attaching to a widget', () => {
+			const editingView = editor.editing.view;
+			const balloonAddSpy = sinon.spy( balloon, 'add' );
+			const defaultPositions = BalloonPanelView.defaultPositions;
+
+			widgetToolbarRepository.register( 'fake', {
+				items: editor.config.get( 'fake.toolbar' ),
+				getRelatedElement: getSelectedFakeWidget
+			} );
+
+			setData( model, '<paragraph>foo</paragraph>[<fake-widget></fake-widget>]' );
+
+			const fakeWidgetToolbarView = widgetToolbarRepository._toolbarDefinitions.get( 'fake' ).view;
+			const widgetViewElement = editingView.document.getRoot().getChild( 1 );
+
+			sinon.assert.calledOnce( balloonAddSpy );
+			sinon.assert.calledWithExactly( balloonAddSpy, {
+				view: fakeWidgetToolbarView,
+				position: {
+					target: editingView.domConverter.mapViewToDom( widgetViewElement ),
+					positions: [
+						defaultPositions.northArrowSouth,
+						defaultPositions.northArrowSouthWest,
+						defaultPositions.northArrowSouthEast,
+						defaultPositions.southArrowNorth,
+						defaultPositions.southArrowNorthWest,
+						defaultPositions.southArrowNorthEast,
+						centeredBalloonPositionForLongWidgets
+					]
+				},
+				balloonClassName: 'ck-toolbar-container'
+			} );
+		} );
 	} );
 } );
 
@@ -689,18 +742,18 @@ class FakeWidget extends Plugin {
 
 		conversion.for( 'dataDowncast' ).elementToElement( {
 			model: 'fake-widget',
-			view: ( modelElement, viewWriter ) => {
-				return viewWriter.createContainerElement( 'div' );
+			view: ( modelElement, { writer } ) => {
+				return writer.createContainerElement( 'div' );
 			}
 		} );
 
 		conversion.for( 'editingDowncast' ).elementToElement( {
 			model: 'fake-widget',
-			view: ( modelElement, viewWriter ) => {
-				const fakeWidget = viewWriter.createContainerElement( 'div' );
-				viewWriter.setCustomProperty( 'fakeWidget', true, fakeWidget );
+			view: ( modelElement, { writer } ) => {
+				const fakeWidget = writer.createContainerElement( 'div' );
+				writer.setCustomProperty( 'fakeWidget', true, fakeWidget );
 
-				return toWidget( fakeWidget, viewWriter, { label: 'fake-widget' } );
+				return toWidget( fakeWidget, writer, { label: 'fake-widget' } );
 			}
 		} );
 
@@ -708,8 +761,8 @@ class FakeWidget extends Plugin {
 			view: {
 				name: 'div'
 			},
-			model: ( view, modelWriter ) => {
-				return modelWriter.createElement( 'fake-widget' );
+			model: ( view, { writer } ) => {
+				return writer.createElement( 'fake-widget' );
 			}
 		} );
 	}
@@ -741,18 +794,18 @@ class FakeChildWidget extends Plugin {
 
 		conversion.for( 'dataDowncast' ).elementToElement( {
 			model: 'fake-child-widget',
-			view: ( modelElement, viewWriter ) => {
-				return viewWriter.createContainerElement( 'div' );
+			view: ( modelElement, { writer } ) => {
+				return writer.createContainerElement( 'div' );
 			}
 		} );
 
 		conversion.for( 'editingDowncast' ).elementToElement( {
 			model: 'fake-child-widget',
-			view: ( modelElement, viewWriter ) => {
-				const fakeWidget = viewWriter.createContainerElement( 'div' );
-				viewWriter.setCustomProperty( 'fakeChildWidget', true, fakeWidget );
+			view: ( modelElement, { writer } ) => {
+				const fakeWidget = writer.createContainerElement( 'div' );
+				writer.setCustomProperty( 'fakeChildWidget', true, fakeWidget );
 
-				return toWidget( fakeWidget, viewWriter, { label: 'fake-child-widget' } );
+				return toWidget( fakeWidget, writer, { label: 'fake-child-widget' } );
 			}
 		} );
 
@@ -760,8 +813,8 @@ class FakeChildWidget extends Plugin {
 			view: {
 				name: 'div'
 			},
-			model: ( view, modelWriter ) => {
-				return modelWriter.createElement( 'fake-child-widget' );
+			model: ( view, { writer } ) => {
+				return writer.createElement( 'fake-child-widget' );
 			}
 		} );
 	}

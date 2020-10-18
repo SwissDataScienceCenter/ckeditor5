@@ -10,6 +10,7 @@
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
 import LinkEditing from './linkediting';
 import LinkUI from './linkui';
+import AutoLink from './autolink';
 
 /**
  * The link plugin.
@@ -24,7 +25,7 @@ export default class Link extends Plugin {
 	 * @inheritDoc
 	 */
 	static get requires() {
-		return [ LinkEditing, LinkUI ];
+		return [ LinkEditing, LinkUI, AutoLink ];
 	}
 
 	/**
@@ -55,6 +56,28 @@ export default class Link extends Plugin {
  *
  * See {@link module:core/editor/editorconfig~EditorConfig all editor options}.
  * @interface LinkConfig
+ */
+
+/**
+ * When set, the editor will add the given protocol to the link when the user creates a link without one.
+ * For example, when the user is creating a link and types `ckeditor.com` in the link form input, during link submission
+ * the editor will automatically add the `http://` protocol, so the link will look as follows: `http://ckeditor.com`.
+ *
+ * The feature also provides email address auto-detection. When you submit `hello@example.com`,
+ * the plugin will automatically change it to `mailto:hello@example.com`.
+ *
+ * 		ClassicEditor
+ *			.create( editorElement, {
+ * 				link: {
+ * 					defaultProtocol: 'http://'
+ * 				}
+ *			} )
+ *			.then( ... )
+ *			.catch( ... );
+ *
+ * **NOTE:** If no configuration is provided, the editor will not auto-fix the links.
+ *
+ * @member {String} module:link/link~LinkConfig#defaultProtocol
  */
 
 /**

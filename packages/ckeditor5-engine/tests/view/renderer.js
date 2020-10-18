@@ -3,17 +3,18 @@
  * For licensing, see LICENSE.md or https://ckeditor.com/legal/ckeditor-oss-license
  */
 
-/* globals document, window, NodeFilter, MutationObserver */
+/* globals document, window, NodeFilter, MutationObserver, HTMLImageElement */
 
 import View from '../../src/view/view';
 import ViewElement from '../../src/view/element';
 import ViewEditableElement from '../../src/view/editableelement';
 import ViewContainerElement from '../../src/view/containerelement';
 import ViewAttributeElement from '../../src/view/attributeelement';
+import ViewRawElement from '../../src/view/rawelement';
+import ViewUIElement from '../../src/view/uielement';
 import ViewText from '../../src/view/text';
 import ViewRange from '../../src/view/range';
 import ViewPosition from '../../src/view/position';
-import UIElement from '../../src/view/uielement';
 import DocumentSelection from '../../src/view/documentselection';
 import DomConverter from '../../src/view/domconverter';
 import Renderer from '../../src/view/renderer';
@@ -303,6 +304,33 @@ describe( 'Renderer', () => {
 
 			expect( domRoot.childNodes.length ).to.equal( 1 );
 			expect( domRoot.childNodes[ 0 ] ).to.equal( domImg );
+		} );
+
+		it( 'should remove any comment from the DOM element', () => {
+			// This comment should be cleared during render.
+			const domComment = document.createComment( 'some comment from the user-land' );
+			domRoot.appendChild( domComment );
+
+			renderer.markToSync( 'children', viewRoot );
+			renderer.render();
+
+			expect( domRoot.childNodes.length ).to.equal( 0 );
+		} );
+
+		// https://github.com/ckeditor/ckeditor5/issues/5734
+		it( 'should remove the comment and add a child element', () => {
+			const viewImg = new ViewElement( viewDocument, 'img' );
+			viewRoot._appendChild( viewImg );
+
+			// This comment should be cleared during render.
+			const domComment = document.createComment( 'some comment from the user-land' );
+			domRoot.appendChild( domComment );
+
+			renderer.markToSync( 'children', viewRoot );
+			renderer.render();
+
+			expect( domRoot.childNodes.length ).to.equal( 1 );
+			expect( domRoot.childNodes[ 0 ] ).to.be.an.instanceof( HTMLImageElement );
 		} );
 
 		it( 'should change element if it is different', () => {
@@ -2706,6 +2734,78 @@ describe( 'Renderer', () => {
 				expect( mappings.get( domQULB ) ).to.equal( viewQ.getChild( 0 ).getChild( 0 ).getChild( 1 ) );
 			} );
 
+			// https://github.com/ckeditor/ckeditor5/issues/5734
+			it( 'should not rerender DOM when view replaced with the same structure without a comment', () => {
+				const domContent = '' +
+					'<h2>He<i>ading 1</i></h2>' +
+					'<p>Ph <strong>Bold</strong>' +
+						'<a href="https://ckeditor.com"><strong>Lin<i>k</i></strong></a>' +
+					'</p>' +
+					'<!-- A comment to be ignored -->' +
+					'<blockquote><ul><li>Quoted <strong>item 1</strong></li></ul></blockquote>';
+				const content = '' +
+					'<container:h2>He' +
+						'<attribute:i>ading 1</attribute:i>' +
+					'</container:h2>' +
+					'<container:p>Ph ' +
+						'<attribute:strong>Bold</attribute:strong>' +
+						'<attribute:a href="https://ckeditor.com">' +
+							'<attribute:strong>Lin<attribute:i>k</attribute:i></attribute:strong>' +
+						'</attribute:a>' +
+					'</container:p>' +
+					'<container:blockquote>' +
+						'<container:ul>' +
+							'<container:li>Quoted <attribute:strong>item 1</attribute:strong></container:li>' +
+						'</container:ul>' +
+					'</container:blockquote>';
+
+				domRoot.innerHTML = domContent;
+				viewRoot._appendChild( parse( content ) );
+
+				const viewH = viewRoot.getChild( 0 );
+				const viewP = viewRoot.getChild( 1 );
+				const viewQ = viewRoot.getChild( 2 );
+
+				const domH = domRoot.childNodes[ 0 ];
+				const domHI = domH.childNodes[ 1 ];
+				const domP = domRoot.childNodes[ 1 ];
+				const domPT = domP.childNodes[ 0 ];
+				const domPABI = domP.childNodes[ 2 ].childNodes[ 0 ].childNodes[ 1 ];
+				const domC = domRoot.childNodes[ 2 ];
+				const domQ = domRoot.childNodes[ 3 ];
+				const domQULB = domQ.childNodes[ 0 ].childNodes[ 0 ].childNodes[ 1 ];
+
+				renderer.markToSync( 'children', viewRoot );
+				renderer.render();
+
+				// Assert the comment is no longer in the content.
+				expect( domRoot.contains( domC ), 'domRoot should not contain the comment' ).to.be.false;
+
+				// Assert content, without the comment.
+				expect( domRoot.innerHTML ).to.equal( '<h2>He<i>ading 1</i></h2><p>Ph <strong>Bold</strong>' +
+					'<a href="https://ckeditor.com"><strong>Lin<i>k</i></strong></a></p><blockquote><ul><li>' +
+					'Quoted <strong>item 1</strong></li></ul></blockquote>' );
+
+				// Assert if other DOM elements did not change.
+				expect( domRoot.childNodes[ 0 ] ).to.equal( domH );
+				expect( domH.childNodes[ 1 ] ).to.equal( domHI );
+				expect( domRoot.childNodes[ 1 ] ).to.equal( domP );
+				expect( domP.childNodes[ 0 ] ).to.equal( domPT );
+				expect( domP.childNodes[ 2 ].childNodes[ 0 ].childNodes[ 1 ] ).to.equal( domPABI );
+				// Note the shifted index of domQ, from 3 to 2.
+				expect( domRoot.childNodes[ 2 ] ).to.equal( domQ );
+				expect( domQ.childNodes[ 0 ].childNodes[ 0 ].childNodes[ 1 ] ).to.equal( domQULB );
+
+				// Assert mappings.
+				const mappings = renderer.domConverter._domToViewMapping;
+				expect( mappings.get( domH ) ).to.equal( viewH );
+				expect( mappings.get( domHI ) ).to.equal( viewH.getChild( 1 ) );
+				expect( mappings.get( domP ) ).to.equal( viewP );
+				expect( mappings.get( domPABI ) ).to.equal( viewP.getChild( 2 ).getChild( 0 ).getChild( 1 ) );
+				expect( mappings.get( domQ ) ).to.equal( viewQ );
+				expect( mappings.get( domQULB ) ).to.equal( viewQ.getChild( 0 ).getChild( 0 ).getChild( 1 ) );
+			} );
+
 			it( 'should not rerender DOM when view replaced with the same structure without first node', () => {
 				const content = '' +
 					'<container:h2>He' +
@@ -3165,7 +3265,7 @@ describe( 'Renderer', () => {
 
 			it( 'should handle uiElement rendering', () => {
 				function createUIElement( id, text ) {
-					const element = new UIElement( viewDocument, 'span' );
+					const element = new ViewUIElement( viewDocument, 'span' );
 					element.render = function( domDocument ) {
 						const domElement = this.toDomElement( domDocument );
 						domElement.innerText = `<span id="${ id }"><b>${ text }</b></span>`;
@@ -3199,6 +3299,72 @@ describe( 'Renderer', () => {
 
 				expect( normalizeHtml( domRoot.innerHTML ) ).to.equal( normalizeHtml(
 					'<p>Foo<span><span id="id2"><b>UI2</b></span></span> Bar</p>' ) );
+			} );
+
+			it( 'should handle RawElement rendering', () => {
+				function createRawElement( id, text ) {
+					const element = new ViewRawElement( viewDocument, 'span' );
+					element.render = function( domElement ) {
+						domElement.innerText = `<span id="${ id }"><b>${ text }</b></span>`;
+					};
+
+					return element;
+				}
+
+				const raw1 = createRawElement( 'id1', 'RAW1' );
+				const raw2 = createRawElement( 'id2', 'RAW2' );
+				const viewP = new ViewContainerElement( viewDocument, 'p', null, [
+					new ViewText( viewDocument, 'Foo ' ),
+					raw1,
+					new ViewText( viewDocument, 'Bar' )
+				] );
+				viewRoot._appendChild( viewP );
+
+				renderer.markToSync( 'children', viewRoot );
+				renderer.render();
+
+				expect( normalizeHtml( domRoot.innerHTML ) ).to.equal( normalizeHtml(
+					'<p>Foo <span><span id="id1"><b>RAW1</b></span></span>Bar</p>' ) );
+
+				viewP._removeChildren( 0, viewP.childCount );
+				viewP._insertChild( 0, [ new ViewText( viewDocument, 'Foo' ), raw2, new ViewText( viewDocument, ' Bar' ) ] );
+
+				renderer.markToSync( 'children', viewRoot );
+				renderer.markToSync( 'children', viewP );
+				renderer.render();
+
+				expect( normalizeHtml( domRoot.innerHTML ) ).to.equal( normalizeHtml(
+					'<p>Foo<span><span id="id2"><b>RAW2</b></span></span> Bar</p>' ) );
+			} );
+
+			it( 'should manage RawElement attributes', () => {
+				const rawElement = new ViewRawElement( viewDocument, 'span', {
+					foo: 'foo1',
+					baz: 'baz1'
+				} );
+
+				rawElement.render = function( domElement ) {
+					domElement.innerHTML = '<b>foo</b>';
+				};
+
+				const viewP = new ViewContainerElement( viewDocument, 'p', null, [ rawElement ] );
+				viewRoot._appendChild( viewP );
+
+				renderer.markToSync( 'children', viewRoot );
+				renderer.render();
+
+				expect( normalizeHtml( domRoot.innerHTML ) ).to.equal( normalizeHtml(
+					'<p><span baz="baz1" foo="foo1"><b>foo</b></span></p>' ) );
+
+				rawElement._setAttribute( 'foo', 'foo2' );
+				rawElement._setAttribute( 'new', 'new-value' );
+				rawElement._removeAttribute( 'baz' );
+
+				renderer.markToSync( 'attributes', rawElement );
+				renderer.render();
+
+				expect( normalizeHtml( domRoot.innerHTML ) ).to.equal( normalizeHtml(
+					'<p><span foo="foo2" new="new-value"><b>foo</b></span></p>' ) );
 			} );
 
 			it( 'should handle linking entire content', () => {

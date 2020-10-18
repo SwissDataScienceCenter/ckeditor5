@@ -9,11 +9,9 @@
 
 import Command from '@ckeditor/ckeditor5-core/src/command';
 import TableWalker from '../tablewalker';
-import {
-	updateNumericAttribute,
-	isHeadingColumnCell
-} from './utils';
-import { getTableCellsContainingSelection } from '../utils';
+import { getTableCellsContainingSelection } from '../utils/selection';
+import { isHeadingColumnCell } from '../utils/common';
+import { removeEmptyRowsColumns } from '../utils/structure';
 
 /**
  * The merge cell command.
@@ -83,6 +81,7 @@ export default class MergeCellCommand extends Command {
 		const model = this.editor.model;
 		const doc = model.document;
 		const tableCell = getTableCellsContainingSelection( doc.selection )[ 0 ];
+
 		const cellToMerge = this.value;
 		const direction = this.direction;
 
@@ -106,10 +105,11 @@ export default class MergeCellCommand extends Command {
 			writer.setAttribute( spanAttribute, cellSpan + cellToMergeSpan, cellToExpand );
 			writer.setSelection( writer.createRangeIn( cellToExpand ) );
 
-			// Remove empty row after merging.
-			if ( !removedTableCellRow.childCount ) {
-				removeEmptyRow( removedTableCellRow, writer );
-			}
+			const tableUtils = this.editor.plugins.get( 'TableUtils' );
+			const table = removedTableCellRow.findAncestor( 'table' );
+
+			// Remove empty rows and columns after merging.
+			removeEmptyRowsColumns( table, tableUtils );
 		} );
 	}
 
@@ -226,7 +226,7 @@ function getVerticalCell( tableCell, direction ) {
 	const currentCellData = tableMap.find( value => value.cell === tableCell );
 	const mergeColumn = currentCellData.column;
 
-	const cellToMergeData = tableMap.find( ( { row, rowspan, column } ) => {
+	const cellToMergeData = tableMap.find( ( { row, cellHeight, column } ) => {
 		if ( column !== mergeColumn ) {
 			return false;
 		}
@@ -236,31 +236,11 @@ function getVerticalCell( tableCell, direction ) {
 			return row === rowOfCellToMerge;
 		} else {
 			// If merging a cell above calculate if it spans to mergeRow.
-			return rowOfCellToMerge === row + rowspan;
+			return rowOfCellToMerge === row + cellHeight;
 		}
 	} );
 
 	return cellToMergeData && cellToMergeData.cell;
-}
-
-// Properly removes an empty row from a table. It will update the `rowspan` attribute of cells that overlap the removed row.
-//
-// @param {module:engine/model/element~Element} removedTableCellRow
-// @param {module:engine/model/writer~Writer} writer
-function removeEmptyRow( removedTableCellRow, writer ) {
-	const table = removedTableCellRow.parent;
-
-	const removedRowIndex = table.getChildIndex( removedTableCellRow );
-
-	for ( const { cell, row, rowspan } of new TableWalker( table, { endRow: removedRowIndex } ) ) {
-		const overlapsRemovedRow = row + rowspan - 1 >= removedRowIndex;
-
-		if ( overlapsRemovedRow ) {
-			updateNumericAttribute( 'rowspan', rowspan - 1, cell, writer );
-		}
-	}
-
-	writer.remove( removedTableCellRow );
 }
 
 // Merges two table cells. It will ensure that after merging cells with an empty paragraph, the resulting table cell will only have one
@@ -288,5 +268,5 @@ function mergeTableCells( cellToRemove, cellToExpand, writer ) {
 // @param {module:engine/model/element~Element} tableCell
 // @returns {Boolean}
 function isEmpty( tableCell ) {
-	return tableCell.childCount == 1 && tableCell.getChild( 0 ).is( 'paragraph' ) && tableCell.getChild( 0 ).isEmpty;
+	return tableCell.childCount == 1 && tableCell.getChild( 0 ).is( 'element', 'paragraph' ) && tableCell.getChild( 0 ).isEmpty;
 }

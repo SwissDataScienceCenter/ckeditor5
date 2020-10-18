@@ -1,5 +1,6 @@
 ---
 category: framework-deep-dive
+classes: schema-deep-dive
 ---
 
 # Schema
@@ -8,11 +9,11 @@ This article assumes that you have already read the {@link framework/guides/arch
 
 ## Quick recap
 
-The editor's schema is available in the {@link module:engine/model/model~Model#schema `editor.model.schema`} property. It defines allowed model structures (how model elements can be nested) and allowed attributes (of both elements and text nodes). This information is later used by editing features and the editing engine to decide how to process the model, where to enable features, etc.
+The editor's schema is available in the {@link module:engine/model/model~Model#schema `editor.model.schema`} property. It defines allowed model structures (how model elements can be nested), allowed attributes (of both elements and text nodes), and other characteristics (inline vs. block, atomicity in regards of external actions). This information is later used by editing features and the editing engine to decide how to process the model, where to enable features, etc.
 
-Schema rules can be defined by using the {@link module:engine/model/schema~Schema#register `Schema#register()`} or {@link module:engine/model/schema~Schema#extend `Schema#extend()`} methods. The former can be used only once for a given item name which ensures that only a single editing feature can introduce this item. Similarly, `extend()` can only be used for defined items.
+Schema rules can be defined by using the {@link module:engine/model/schema~Schema#register `Schema#register()`} or the {@link module:engine/model/schema~Schema#extend `Schema#extend()`} methods. The former can be used only once for a given item name which ensures that only a single editing feature can introduce this item. Similarly, `extend()` can only be used for defined items.
 
-Elements and attributes are checked by features separately by using the {@link module:engine/model/schema~Schema#checkChild `Schema#checkChild()`} and {@link module:engine/model/schema~Schema#checkAttribute `Schema#checkAttribute()`} methods.
+Elements and attributes are checked by features separately by using the {@link module:engine/model/schema~Schema#checkChild `Schema#checkChild()`} and the {@link module:engine/model/schema~Schema#checkAttribute `Schema#checkAttribute()`} methods.
 
 ## Defining allowed structures
 
@@ -43,6 +44,325 @@ While this would be incorrect:
 	</foo>
 </$root>
 ```
+
+## Defining additional semantics
+
+In addition to setting allowed structures, the schema can also define additional traits of model elements. By using the `is*` properties, a feature author may declare how a certain element should be treated by other features and by the engine.
+
+Here is a table listing various model elements and their properties registered in the schema:
+
+<table>
+	<thead>
+		<tr>
+			<th rowspan="2">Schema entry</th>
+			<th colspan="6">Properties in the <a href="#defining-allowed-structures">definition</a></th>
+		</tr>
+		<tr>
+			<th><a href="#block-elements"><code>isBlock</code></a></th>
+			<th><a href="#limit-elements"><code>isLimit</code></a></th>
+			<th><a href="#object-elements"><code>isObject</code></a></th>
+			<th><a href="#inline-elements"><code>isInline</code></a></th>
+			<th><a href="#selectable-elements"><code>isSelectable</code></a></th>
+			<th><a href="#content-elements"><code>isContent</code></a></th>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td><code>$block</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>$clipboardHolder</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>$marker</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>$root</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>$text</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+		</tr>
+		<tr>
+			<td><code>blockQuote</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>caption</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>codeBlock</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>heading1</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>heading2</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>heading3</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>horizontalLine</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited1"><sup>[1]</sup></a></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited2"><sup>[2]</sup></a></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited3"><sup>[3]</sup></a></td>
+		</tr>
+		<tr>
+			<td><code>image</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited1"><sup>[1]</sup></a></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited2"><sup>[2]</sup></a></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited3"><sup>[3]</sup></a></td>
+		</tr>
+		<tr>
+			<td><code>listItem</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>media</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited1"><sup>[1]</sup></a></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited2"><sup>[2]</sup></a></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited3"><sup>[3]</sup></a></td>
+		</tr>
+		<tr>
+			<td><code>pageBreak</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited1"><sup>[1]</sup></a></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited2"><sup>[2]</sup></a></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited3"><sup>[3]</sup></a></td>
+		</tr>
+		<tr>
+			<td><code>paragraph</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>softBreak</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>table</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited1"><sup>[1]</sup></a></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited2"><sup>[2]</sup></a></td>
+			<td class="value_positive_inherited"><code>true</code><a href="#inherited3"><sup>[3]</sup></a></td>
+		</tr>
+		<tr>
+			<td><code>tableRow</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+		<tr>
+			<td><code>tableCell</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_negative"><code>false</code></td>
+			<td class="value_positive"><code>true</code></td>
+			<td class="value_negative"><code>false</code></td>
+		</tr>
+	</tbody>
+</table>
+
+<info-box>
+	* <span id="inherited1">[1]</span> The value of `isLimit` is `true` for this element because all [objects](#object-elements) are automatically [limit elements](#limit-elements).
+	* <span id="inherited2">[2]</span> The value of `isSelectable` is `true` for this element because all [objects](#object-elements) are automatically [selectable elements](#selectable-elements).
+	* <span id="inherited3">[3]</span> The value of `isContent` is `true` for this element because all [objects](#object-elements) are automatically [content elements](#content-elements).
+</info-box>
+
+### Limit elements
+
+Consider a feature like an image caption. The caption text area should construct a boundary to some internal actions:
+
+* A selection that starts inside should not end outside.
+* Pressing <kbd>Backspace</kbd> or <kbd>Delete</kbd> should not delete the area. Pressing <kbd>Enter</kbd> should not split the area.
+
+It should also act as a boundary for external actions. This is mostly enforced by a selection post-fixer that ensures that a selection that starts outside, should not end inside. It means that most actions will either apply to the "outside" of such an element or to the content inside it.
+
+Taken these characteristics, the image caption should be defined as a limit element by using the {@link module:engine/model/schema~SchemaItemDefinition#isLimit `isLimit`} property.
+
+```js
+schema.register( 'myCaption', {
+	isLimit: true
+} );
+```
+
+The engine and various features then check it via {@link module:engine/model/schema~Schema#isLimit `Schema#isLimit()`} and can act accordingly.
+
+<info-box>
+	"Limit element" does not mean "editable element". The concept of "editability" is reserved for the view and expressed by the {@link module:engine/view/editableelement~EditableElement `EditableElement` class}.
+</info-box>
+
+### Object elements
+
+For an image caption like in the example above it does not make much sense to select the caption box, then copy or drag it somewhere else.
+
+A caption without the image it describes makes little sense. The image, however, is more self-sufficient. Most likely users should be able to select the entire image (with all its internals), then copy or move it around. The {@link module:engine/model/schema~SchemaItemDefinition#isObject `isObject`} property should be used to mark such behavior.
+
+```js
+schema.register( 'myImage', {
+	isObject: true
+} );
+```
+
+The {@link module:engine/model/schema~Schema#isObject `Schema#isObject()`} can later be used to check this property.
+
+<info-box>
+	Every object is automatically also:
+
+	* A [limit element](#limit-elements) &ndash; For every element with `isObject` set to `true`, {@link module:engine/model/schema~Schema#isLimit `Schema#isLimit( element )`} will always return `true`.
+	* A [selectable element](#selectable-elements) &ndash; For every element with `isObject` set to `true`, {@link module:engine/model/schema~Schema#isSelectable `Schema#isSelectable( element )`} will always return `true`.
+	* A [content element](#content-elements) &ndash; For every element with `isObject` set to `true`, {@link module:engine/model/schema~Schema#isContent `Schema#isContent( element )`} will always return `true`.
+</info-box>
+
+### Block elements
+
+Generally speaking, content is usually made out of blocks like paragraphs, list items, images, headings, etc. All these elements should be marked as blocks by using {@link module:engine/model/schema~SchemaItemDefinition#isBlock `isBlock`}.
+
+It is important to remember that a block should not allow another block inside. Container elements like `<blockQuote>`, which can contain other block elements, should not be marked as blocks.
+
+<info-box>
+	There is also the `$block` generic item which has `isBlock` set to `true`. Most block type items will inherit from `$block` (through `inheritAllFrom`).
+</info-box>
+
+### Inline elements
+
+In the editor, all HTML formatting elements such as `<strong>` or `<code>` are represented by text attributes. Therefore, inline model elements are not supposed to be used for these scenarios.
+
+Currently, the {@link module:engine/model/schema~SchemaItemDefinition#isInline `isInline`} property is used for the `$text` token (so, text nodes) and elements such as `<softBreak>` or placeholder elements such as described in the {@link framework/guides/tutorials/implementing-an-inline-widget Implementing an inline widget} tutorial.
+
+The support for inline elements in CKEditor 5 is so far limited to self-contained elements. Because of this, all elements marked with `isInline` should also be marked with `isObject`.
+
+### Selectable elements
+
+Elements that users can select as a whole (with all their internals) and then, for instance, copy them or apply formatting, are marked with the {@link module:engine/model/schema~SchemaItemDefinition#isSelectable `isSelectable`} property in the schema:
+
+```js
+schema.register( 'mySelectable', {
+	isSelectable: true
+} );
+```
+
+The {@link module:engine/model/schema~Schema#isSelectable `Schema#isSelectable()`} method can later be used to check this property.
+
+<info-box>
+	All [object elements](#object-elements) are selectable by default. There are other selectable elements registered in the editor, though. For instance, there is also the `tableCell` model element (rendered as a `<td>` in the editing view) that is selectable while **not** registered as an object. The {@link features/table#table-selection table selection} plugin takes advantage of this fact and allows users to create rectangular selections made of multiple table cells.
+</info-box>
+
+### Content elements
+
+You can tell content model elements from other elements by looking at their representation in the editor data (you can use {@link module:editor-classic/classiceditor~ClassicEditor#getData `editor.getData()`} or {@link module:engine/model/model~Model#hasContent Model#hasContent()} to check this out).
+
+Elements such as images or media will **always** find their way into the editor data and this is what makes them content elements. They are marked with the {@link module:engine/model/schema~SchemaItemDefinition#isContent `isContent`} property in the schema:
+
+```js
+schema.register( 'myImage', {
+	isContent: true
+} );
+```
+
+The {@link module:engine/model/schema~Schema#isContent `Schema#isContent()`} method can later be used to check this property.
+
+At the same time, elements like paragraphs, list items, or headings **are not** content elements because they are skipped in the editor output when they are empty. From the data perspective they are transparent unless they contain other content elements (an empty paragraph is as good as no paragraph).
+
+<info-box>
+	[Object elements](#object-elements) and [`$text`](#generic-items) are content by default.
+</info-box>
 
 ## Generic items
 
@@ -81,7 +401,7 @@ schema.register( 'paragraph', {
 } );
 ```
 
-Which can be read as:
+And this can be read as:
 
 * The `<paragraph>` element will be allowed in elements in which `<$block>` is allowed (e.g. in `<$root>`).
 * The `<paragraph>` element will allow all nodes that are allowed in `<$block>` (e.g. `$text`).
@@ -107,7 +427,7 @@ The side effect of such a definition inheritance is that now `<blockQuote>` is a
 
 ## Defining advanced rules in `checkChild()` callbacks
 
-The {@link module:engine/model/schema~Schema#checkChild `Schema#checkChild()`} method which is the base method used to check whether some element is allowed in a given structure is {@link module:utils/observablemixin~ObservableMixin#decorate a decorated method}. It means that you can add listeners to implement your specific rules which are not limited by the {@link module:engine/model/schema~SchemaItemDefinition declarative `SchemaItemDefinition` API}.
+The {@link module:engine/model/schema~Schema#checkChild `Schema#checkChild()`} method which is the a base method used to check whether some element is allowed in a given structure is {@link module:utils/observablemixin~ObservableMixin#decorate a decorated method}. It means that you can add listeners to implement your specific rules which are not limited by the {@link module:engine/model/schema~SchemaItemDefinition declarative `SchemaItemDefinition` API}.
 
 These listeners can be added either by listening directly to the {@link module:engine/model/schema~Schema#event:checkChild} event or by using the handy {@link module:engine/model/schema~Schema#addChildCheck `Schema#addChildCheck()`} method.
 
@@ -165,7 +485,7 @@ While this is a relatively simple scenario (unlike most real-time collaborative 
 
 Therefore, if your editor needs to implement such rules, you should do that through {@link module:engine/model/document~Document#registerPostFixer model's post-fixers} fixing incorrect content or actively prevent such situations (e.g. by disabling certain features). It means that these constraints will be defined specifically for your scenario by your code which makes their implementation much easier.
 
-To sum up, the answer to who and how should implement additional constraints is: Your features or your editor through the CKEditor 5 API.
+To sum up, the answer to who and how should implement additional constraints is: your features or your editor through the CKEditor 5 API.
 
 ## Who checks the schema?
 
@@ -202,4 +522,50 @@ Finally, the schema plays a crucial role during the conversion from the view to 
 	Some features may miss schema checks. If you happen to find such a scenario, do not hesitate to [report it to us](https://github.com/ckeditor/ckeditor5/issues).
 </info-box>
 
+<style>
+.schema-deep-dive table {
+	text-align: center;
+}
 
+.schema-deep-dive table td,
+.schema-deep-dive table th {
+	border-color: hsl(72deg 6% 16%);
+}
+
+.schema-deep-dive table thead th {
+	font-weight: bold;
+	vertical-align: middle;
+}
+
+.schema-deep-dive table thead th code {
+	white-space: nowrap;
+}
+
+.schema-deep-dive table tbody td.value_negative {
+	background: hsl(354deg, 100%, 90%);
+}
+
+.schema-deep-dive table tbody td.value_positive {
+	background: hsl(88deg, 50%, 60%);
+}
+
+.schema-deep-dive table tbody td.value_negative code,
+.schema-deep-dive table tbody td.value_positive code,
+.schema-deep-dive table tbody td.value_positive_inherited code {
+	background: none;
+	text-shadow: 0px 0px 2px hsl(0deg, 0%, 100%);
+}
+
+.schema-deep-dive table tbody td.value_positive_inherited {
+	background-image: linear-gradient(45deg, hsl(88deg, 50%, 60%) 25%, hsl(89deg, 58% ,71%) 25%, hsl(89deg, 58%, 71%) 50%, hsl(88deg, 50%, 60%) 50%, hsl(88deg, 50%, 60%) 75%, hsl(89deg, 58%, 71%) 75%, hsl(89deg, 58%, 71%) 100%);
+	background-size: 3px 3px;
+}
+
+.schema-deep-dive table tbody td sup {
+	top: -0.5em;
+	position: relative;
+	font-size: 75%;
+	line-height: 0;
+	vertical-align: baseline;
+}
+</style>

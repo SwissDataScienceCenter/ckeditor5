@@ -20,7 +20,8 @@ import {
 	setHighlightHandling,
 	findOptimalInsertionPosition,
 	viewToModelPositionOutsideModelElement,
-	WIDGET_CLASS_NAME
+	WIDGET_CLASS_NAME,
+	centeredBalloonPositionForLongWidgets
 } from '../src/utils';
 import UIElement from '@ckeditor/ckeditor5-engine/src/view/uielement';
 import testUtils from '@ckeditor/ckeditor5-core/tests/_utils/utils';
@@ -29,6 +30,9 @@ import { setData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
 import Mapper from '@ckeditor/ckeditor5-engine/src/conversion/mapper';
 import ModelElement from '@ckeditor/ckeditor5-engine/src/model/element';
 import ModelText from '@ckeditor/ckeditor5-engine/src/model/text';
+import BalloonPanelView from '@ckeditor/ckeditor5-ui/src/panel/balloon/balloonpanelview';
+import global from '@ckeditor/ckeditor5-utils/src/dom/global';
+import Rect from '@ckeditor/ckeditor5-utils/src/dom/rect';
 
 describe( 'widget utils', () => {
 	let element, writer, viewDocument;
@@ -121,6 +125,24 @@ describe( 'widget utils', () => {
 			expect( icon.nodeName ).to.equal( 'svg' );
 			expect( icon.classList.contains( 'ck' ) ).to.be.true;
 			expect( icon.classList.contains( 'ck-icon' ) ).to.be.true;
+		} );
+
+		it( 'should throw when attempting to create a widget out of anything but ContainerElement', () => {
+			expect( () => {
+				toWidget( writer.createRawElement( 'div' ), writer );
+			}, 'raw element' ).to.throw( /^widget-to-widget-wrong-element-type/ );
+
+			expect( () => {
+				toWidget( writer.createEmptyElement( 'img' ), writer );
+			}, 'empty element' ).to.throw( /^widget-to-widget-wrong-element-type/ );
+
+			expect( () => {
+				toWidget( writer.createAttributeElement( 'a' ), writer );
+			}, 'attribute element' ).to.throw( /^widget-to-widget-wrong-element-type/ );
+
+			expect( () => {
+				toWidget( writer.createUIElement( 'span' ), writer );
+			}, 'UI element' ).to.throw( /^widget-to-widget-wrong-element-type/ );
 		} );
 	} );
 
@@ -323,6 +345,11 @@ describe( 'widget utils', () => {
 				isBlock: true
 			} );
 
+			model.schema.register( 'horizontalLine', {
+				isObject: true,
+				allowWhere: '$block'
+			} );
+
 			model.schema.extend( 'span', { allowIn: 'paragraph' } );
 			model.schema.extend( '$text', { allowIn: 'span' } );
 		} );
@@ -406,6 +433,73 @@ describe( 'widget utils', () => {
 
 			expect( pos.path ).to.deep.equal( [ 3 ] );
 		} );
+
+		// https://github.com/ckeditor/ckeditor5/issues/7438
+		describe( 'integration with the WidgetTypeAround feature ("widget-type-around" model selection attribute)', () => {
+			it( 'should respect the attribute value when a widget (block and an object) is selected ("fake caret" before a widget)', () => {
+				setData( model, '<paragraph>x</paragraph>[<image></image>]<paragraph>y</paragraph>' );
+
+				model.change( writer => {
+					writer.setSelectionAttribute( 'widget-type-around', 'before' );
+				} );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 1 ] );
+			} );
+
+			it( 'should respect the attribute value when a widget (block and an object) is selected ("fake caret" after a widget)', () => {
+				setData( model, '<paragraph>x</paragraph>[<image></image>]<paragraph>y</paragraph>' );
+
+				model.change( writer => {
+					writer.setSelectionAttribute( 'widget-type-around', 'after' );
+				} );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 2 ] );
+			} );
+
+			it( 'should return a position after a selected widget (block and an object) ("fake caret" not displayed)', () => {
+				setData( model, '<paragraph>x</paragraph>[<image></image>]<paragraph>y</paragraph>' );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 2 ] );
+			} );
+
+			it( 'should respect the attribute value when a widget (an object) is selected ("fake caret" before a widget)', () => {
+				setData( model, '<paragraph>x</paragraph>[<horizontalLine></horizontalLine>]<paragraph>y</paragraph>' );
+
+				model.change( writer => {
+					writer.setSelectionAttribute( 'widget-type-around', 'before' );
+				} );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 1 ] );
+			} );
+
+			it( 'should respect the attribute value when a widget (an object) is selected ("fake caret" after a widget)', () => {
+				setData( model, '<paragraph>x</paragraph>[<horizontalLine></horizontalLine>]<paragraph>y</paragraph>' );
+
+				model.change( writer => {
+					writer.setSelectionAttribute( 'widget-type-around', 'after' );
+				} );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 2 ] );
+			} );
+
+			it( 'should return a position after a selected widget (an object) ("fake caret" not displayed)', () => {
+				setData( model, '<paragraph>x</paragraph>[<horizontalLine></horizontalLine>]<paragraph>y</paragraph>' );
+
+				const pos = findOptimalInsertionPosition( doc.selection, model );
+
+				expect( pos.path ).to.deep.equal( [ 2 ] );
+			} );
+		} );
 	} );
 
 	describe( 'viewToModelPositionOutsideModelElement()', () => {
@@ -487,6 +581,137 @@ describe( 'widget utils', () => {
 			const modelPosition = mapper.toModelPosition( viewPosition );
 
 			expect( modelPosition.path ).to.deep.equal( [ 3, 1 ] );
+		} );
+	} );
+
+	describe( 'centeredBalloonPositionForLongWidgets()', () => {
+		const arrowVerticalOffset = BalloonPanelView.arrowVerticalOffset;
+
+		// Balloon is a 10x10 rect.
+		const balloonRect = new Rect( {
+			top: 0,
+			left: 0,
+			right: 10,
+			bottom: 10,
+			width: 10,
+			height: 10
+		} );
+
+		beforeEach( () => {
+			testUtils.sinon.stub( global.window, 'innerWidth' ).value( 100 );
+			testUtils.sinon.stub( global.window, 'innerHeight' ).value( 100 );
+		} );
+
+		it( 'should return null if there is enough space above the widget', () => {
+			// Widget is a 50x150 rect, translated (25,25) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: 25,
+				left: 25,
+				right: 75,
+				bottom: 175,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.equal( null );
+		} );
+
+		it( 'should return null if there is enough space below the widget', () => {
+			// Widget is a 50x150 rect, translated (25,-125) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: -125,
+				left: 25,
+				right: 75,
+				bottom: 25,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.equal( null );
+		} );
+
+		it( 'should position the balloon inside a widget – at the top + in the middle', () => {
+			// Widget is a 50x150 rect, translated (25,5) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: 5,
+				left: 25,
+				right: 75,
+				bottom: 155,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.deep.equal( {
+				top: 5 + arrowVerticalOffset,
+				left: 45,
+				name: 'arrow_n'
+			} );
+		} );
+
+		it( 'should stick the balloon to the top of the viewport when the top of a widget is off-screen', () => {
+			// Widget is a 50x150 rect, translated (25,-25) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: -25,
+				left: 25,
+				right: 75,
+				bottom: 150,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.deep.equal( {
+				top: arrowVerticalOffset,
+				left: 45,
+				name: 'arrow_n'
+			} );
+		} );
+
+		it( 'should horizontally center the balloon in the visible area when the widget is cropped by the viewport', () => {
+			// Widget is a 50x150 rect, translated (-25,5) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: 5,
+				left: -25,
+				right: 25,
+				bottom: 155,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.deep.equal( {
+				top: 5 + arrowVerticalOffset,
+				left: 7.5,
+				name: 'arrow_n'
+			} );
+		} );
+
+		it( 'should horizontally center the balloon in the widget when the widget is completely off the viewport', () => {
+			// Widget is a 50x150 rect, translated (0,-100) from viewport's beginning (0,0).
+			const widgetRect = new Rect( {
+				top: 0,
+				left: -100,
+				right: -50,
+				bottom: 150,
+				width: 50,
+				height: 150
+			} );
+
+			const position = centeredBalloonPositionForLongWidgets( widgetRect, balloonRect );
+
+			expect( position ).to.deep.equal( {
+				top: 0 + arrowVerticalOffset,
+				left: -80,
+				name: 'arrow_n'
+			} );
 		} );
 	} );
 } );

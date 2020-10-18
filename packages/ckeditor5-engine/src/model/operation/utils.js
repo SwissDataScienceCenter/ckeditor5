@@ -70,8 +70,7 @@ export function _remove( range ) {
 		 * @error operation-utils-remove-range-not-flat
 		 */
 		throw new CKEditorError(
-			'operation-utils-remove-range-not-flat: ' +
-			'Trying to remove a range which starts and ends in different element.',
+			'operation-utils-remove-range-not-flat',
 			this
 		);
 	}
@@ -109,8 +108,7 @@ export function _move( sourceRange, targetPosition ) {
 		 * @error operation-utils-move-range-not-flat
 		 */
 		throw new CKEditorError(
-			'operation-utils-move-range-not-flat: ' +
-			'Trying to move a range which starts and ends in different element.',
+			'operation-utils-move-range-not-flat',
 			this
 		);
 	}
@@ -143,7 +141,7 @@ export function _setAttribute( range, key, value ) {
 		// Iterator will return `TextProxy` instances but we know that those text proxies will
 		// always represent full text nodes (this is guaranteed thanks to splitting we did before).
 		// So, we can operate on those text proxies' text nodes.
-		const node = item.is( 'textProxy' ) ? item.textNode : item;
+		const node = item.is( '$textProxy' ) ? item.textNode : item;
 
 		if ( value !== null ) {
 			node._setAttribute( key, value );
@@ -219,7 +217,7 @@ function _mergeNodesAtIndex( element, index ) {
 	const nodeAfter = element.getChild( index );
 
 	// Check if both of those nodes are text objects with same attributes.
-	if ( nodeBefore && nodeAfter && nodeBefore.is( 'text' ) && nodeAfter.is( 'text' ) && _haveSameAttributes( nodeBefore, nodeAfter ) ) {
+	if ( nodeBefore && nodeAfter && nodeBefore.is( '$text' ) && nodeAfter.is( '$text' ) && _haveSameAttributes( nodeBefore, nodeAfter ) ) {
 		// Append text of text node after index to the before one.
 		const mergedNode = new Text( nodeBefore.data + nodeAfter.data, nodeBefore.getAttributes() );
 

@@ -117,6 +117,18 @@ export default class Writer {
 	}
 
 	/**
+	 * Creates a copy of the element and returns it. Created element has the same name and attributes as the original element.
+	 * If clone is deep, the original element's children are also cloned. If not, then empty element is returned.
+	 *
+	 * @param {module:engine/model/element~Element} element The element to clone.
+	 * @param {Boolean} [deep=true] If set to `true` clones element and all its children recursively. When set to `false`,
+	 * element will be cloned without any child.
+	 */
+	cloneElement( element, deep = true ) {
+		return element._clone( deep );
+	}
+
+	/**
 	 * Inserts item on given position.
 	 *
 	 *		const paragraph = writer.createElement( 'paragraph' );
@@ -184,9 +196,7 @@ export default class Writer {
 					 * @error model-writer-insert-forbidden-move
 					 */
 					throw new CKEditorError(
-						'model-writer-insert-forbidden-move: ' +
-						'Cannot move a node from a document to a different tree. ' +
-						'It is forbidden to move a node that was already in a document outside of it.',
+						'model-writer-insert-forbidden-move',
 						this
 					);
 				} else {
@@ -472,7 +482,7 @@ export default class Writer {
 			 *
 			 * @error writer-move-invalid-range
 			 */
-			throw new CKEditorError( 'writer-move-invalid-range: Invalid range to move.', this );
+			throw new CKEditorError( 'writer-move-invalid-range', this );
 		}
 
 		if ( !range.isFlat ) {
@@ -481,7 +491,7 @@ export default class Writer {
 			 *
 			 * @error writer-move-range-not-flat
 			 */
-			throw new CKEditorError( 'writer-move-range-not-flat: Range to move is not flat.', this );
+			throw new CKEditorError( 'writer-move-range-not-flat', this );
 		}
 
 		const position = Position._createAt( itemOrPosition, offset );
@@ -501,7 +511,7 @@ export default class Writer {
 			 *
 			 * @error writer-move-different-document
 			 */
-			throw new CKEditorError( 'writer-move-different-document: Range is going to be moved between different documents.', this );
+			throw new CKEditorError( 'writer-move-different-document', this );
 		}
 
 		const version = range.root.document ? range.root.document.version : null;
@@ -553,7 +563,7 @@ export default class Writer {
 			 *
 			 * @error writer-merge-no-element-before
 			 */
-			throw new CKEditorError( 'writer-merge-no-element-before: Node before merge position must be an element.', this );
+			throw new CKEditorError( 'writer-merge-no-element-before', this );
 		}
 
 		if ( !( nodeAfter instanceof Element ) ) {
@@ -562,7 +572,7 @@ export default class Writer {
 			 *
 			 * @error writer-merge-no-element-after
 			 */
-			throw new CKEditorError( 'writer-merge-no-element-after: Node after merge position must be an element.', this );
+			throw new CKEditorError( 'writer-merge-no-element-after', this );
 		}
 
 		if ( !position.root.document ) {
@@ -712,7 +722,7 @@ export default class Writer {
 			 * @error writer-rename-not-element-instance
 			 */
 			throw new CKEditorError(
-				'writer-rename-not-element-instance: Trying to rename an object which is not an instance of Element.',
+				'writer-rename-not-element-instance',
 				this
 			);
 		}
@@ -749,7 +759,7 @@ export default class Writer {
 			 *
 			 * @error writer-split-element-no-parent
 			 */
-			throw new CKEditorError( 'writer-split-element-no-parent: Element with no parent can not be split.', this );
+			throw new CKEditorError( 'writer-split-element-no-parent', this );
 		}
 
 		// When limit element is not defined lets set splitElement parent as limit.
@@ -758,7 +768,12 @@ export default class Writer {
 		}
 
 		if ( !position.parent.getAncestors( { includeSelf: true } ).includes( limitElement ) ) {
-			throw new CKEditorError( 'writer-split-invalid-limit-element: Limit element is not a position ancestor.', this );
+			/**
+			 * Limit element is not a position ancestor.
+			 *
+			 * @error writer-split-invalid-limit-element
+			 */
+			throw new CKEditorError( 'writer-split-invalid-limit-element', this );
 		}
 
 		// We need to cache elements that will be created as a result of the first split because
@@ -808,7 +823,7 @@ export default class Writer {
 			 *
 			 * @error writer-wrap-range-not-flat
 			 */
-			throw new CKEditorError( 'writer-wrap-range-not-flat: Range to wrap is not flat.', this );
+			throw new CKEditorError( 'writer-wrap-range-not-flat', this );
 		}
 
 		const element = elementOrString instanceof Element ? elementOrString : new Element( elementOrString );
@@ -819,7 +834,7 @@ export default class Writer {
 			 *
 			 * @error writer-wrap-element-not-empty
 			 */
-			throw new CKEditorError( 'writer-wrap-element-not-empty: Element to wrap with is not empty.', this );
+			throw new CKEditorError( 'writer-wrap-element-not-empty', this );
 		}
 
 		if ( element.parent !== null ) {
@@ -828,7 +843,7 @@ export default class Writer {
 			 *
 			 * @error writer-wrap-element-attached
 			 */
-			throw new CKEditorError( 'writer-wrap-element-attached: Element to wrap with is already attached to tree model.', this );
+			throw new CKEditorError( 'writer-wrap-element-attached', this );
 		}
 
 		this.insert( element, range.start );
@@ -854,7 +869,7 @@ export default class Writer {
 			 *
 			 * @error writer-unwrap-element-no-parent
 			 */
-			throw new CKEditorError( 'writer-unwrap-element-no-parent: Trying to unwrap an element which has no parent.', this );
+			throw new CKEditorError( 'writer-unwrap-element-no-parent', this );
 		}
 
 		this.move( Range._createIn( element ), this.createPositionAfter( element ) );
@@ -907,12 +922,9 @@ export default class Writer {
 			/**
 			 * The `options.usingOperation` parameter is required when adding a new marker.
 			 *
-			 * @error writer-addMarker-no-usingOperation
+			 * @error writer-addmarker-no-usingoperation
 			 */
-			throw new CKEditorError(
-				'writer-addMarker-no-usingOperation: The options.usingOperation parameter is required when adding a new marker.',
-				this
-			);
+			throw new CKEditorError( 'writer-addmarker-no-usingoperation', this );
 		}
 
 		const usingOperation = options.usingOperation;
@@ -923,21 +935,18 @@ export default class Writer {
 			/**
 			 * Marker with provided name already exists.
 			 *
-			 * @error writer-addMarker-marker-exists
+			 * @error writer-addmarker-marker-exists
 			 */
-			throw new CKEditorError( 'writer-addMarker-marker-exists: Marker with provided name already exists.', this );
+			throw new CKEditorError( 'writer-addmarker-marker-exists', this );
 		}
 
 		if ( !range ) {
 			/**
 			 * Range parameter is required when adding a new marker.
 			 *
-			 * @error writer-addMarker-no-range
+			 * @error writer-addmarker-no-range
 			 */
-			throw new CKEditorError(
-				'writer-addMarker-no-range: Range parameter is required when adding a new marker.',
-				this
-			);
+			throw new CKEditorError( 'writer-addmarker-no-range', this );
 		}
 
 		if ( !usingOperation ) {
@@ -1028,9 +1037,9 @@ export default class Writer {
 			/**
 			 * Marker with provided name does not exists.
 			 *
-			 * @error writer-updateMarker-marker-not-exists
+			 * @error writer-updatemarker-marker-not-exists
 			 */
-			throw new CKEditorError( 'writer-updateMarker-marker-not-exists: Marker with provided name does not exists.', this );
+			throw new CKEditorError( 'writer-updatemarker-marker-not-exists', this );
 		}
 
 		if ( !options ) {
@@ -1049,12 +1058,9 @@ export default class Writer {
 			/**
 			 * One of the options is required - provide range, usingOperations or affectsData.
 			 *
-			 * @error writer-updateMarker-wrong-options
+			 * @error writer-updatemarker-wrong-options
 			 */
-			throw new CKEditorError(
-				'writer-updateMarker-wrong-options: One of the options is required - provide range, usingOperations or affectsData.',
-				this
-			);
+			throw new CKEditorError( 'writer-updatemarker-wrong-options', this );
 		}
 
 		const currentRange = currentMarker.getRange();
@@ -1102,9 +1108,9 @@ export default class Writer {
 			/**
 			 * Trying to remove marker which does not exist.
 			 *
-			 * @error writer-removeMarker-no-marker
+			 * @error writer-removemarker-no-marker
 			 */
-			throw new CKEditorError( 'writer-removeMarker-no-marker: Trying to remove marker which does not exist.', this );
+			throw new CKEditorError( 'writer-removemarker-no-marker', this );
 		}
 
 		const marker = this.model.markers.get( name );
@@ -1337,7 +1343,7 @@ export default class Writer {
 		 * @error writer-incorrect-use
 		 */
 		if ( this.model._currentWriter !== this ) {
-			throw new CKEditorError( 'writer-incorrect-use: Trying to use a writer outside the change() block.', this );
+			throw new CKEditorError( 'writer-incorrect-use', this );
 		}
 	}
 

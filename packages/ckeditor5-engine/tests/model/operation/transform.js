@@ -39,11 +39,10 @@ describe( 'transform', () => {
 
 	function expectOperation( op, params ) {
 		for ( const i in params ) {
-			if ( params.hasOwnProperty( i ) ) {
+			if ( Object.prototype.hasOwnProperty.call( params, i ) ) {
 				if ( i == 'type' ) {
 					expect( op, 'type' ).to.be.instanceof( params[ i ] );
-				}
-				else if ( params[ i ] instanceof Array ) {
+				} else if ( params[ i ] instanceof Array ) {
 					expect( op[ i ].length, i ).to.equal( params[ i ].length );
 
 					for ( let j = 0; j < params[ i ].length; j++ ) {
@@ -1770,45 +1769,6 @@ describe( 'transform', () => {
 				expected.targetPosition = targetPosition.getShiftedBy( 2 );
 
 				expectOperation( transOp[ 2 ], expected );
-			} );
-
-			it( 'range intersects on right side of transforming range and is important: shrink range', () => {
-				const transformBy = new MoveOperation(
-					new Position( root, [ 2, 2, 5 ] ),
-					2,
-					new Position( root, [ 4, 1, 0 ] ),
-					0
-				);
-
-				const transOp = transform( op, transformBy );
-
-				expected.howMany = 1;
-
-				expect( transOp.length ).to.equal( 1 );
-				expectOperation( transOp[ 0 ], expected );
-			} );
-
-			it( 'range intersects on right side of transforming range and is less important: split into two operations', () => {
-				const transformBy = new MoveOperation(
-					new Position( root, [ 2, 2, 5 ] ),
-					2,
-					new Position( root, [ 4, 1, 0 ] ),
-					0
-				);
-
-				const transOp = transform( op, transformBy, strongContext );
-
-				expect( transOp.length ).to.equal( 2 );
-
-				expected.sourcePosition = sourcePosition;
-				expected.howMany = 1;
-
-				expectOperation( transOp[ 0 ], expected );
-
-				expected.sourcePosition = new Position( root, [ 4, 1, 0 ] );
-				expected.targetPosition = targetPosition.getShiftedBy( 1 );
-
-				expectOperation( transOp[ 1 ], expected );
 			} );
 
 			it( 'range intersects, target inside transforming range and is important: split into two operations', () => {

@@ -4,12 +4,15 @@
  */
 
 import ModelTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/modeltesteditor';
+import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import { getData, setData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
-import SetHeaderRowCommand from '../../src/commands/setheaderrowcommand';
-import { assertSelectedCells, defaultConversion, defaultSchema, modelTable } from '../_utils/utils';
-import TableSelection from '../../src/tableselection';
-import TableUtils from '../../src/tableutils';
 import { assertEqualMarkup } from '@ckeditor/ckeditor5-utils/tests/_utils/utils';
+
+import TableEditing from '../../src/tableediting';
+import TableSelection from '../../src/tableselection';
+import { assertSelectedCells, modelTable } from '../_utils/utils';
+
+import SetHeaderRowCommand from '../../src/commands/setheaderrowcommand';
 
 describe( 'SetHeaderRowCommand', () => {
 	let editor, model, command;
@@ -17,15 +20,12 @@ describe( 'SetHeaderRowCommand', () => {
 	beforeEach( () => {
 		return ModelTestEditor
 			.create( {
-				plugins: [ TableUtils, TableSelection ]
+				plugins: [ Paragraph, TableEditing, TableSelection ]
 			} )
 			.then( newEditor => {
 				editor = newEditor;
 				model = editor.model;
 				command = new SetHeaderRowCommand( editor );
-
-				defaultSchema( model.schema );
-				defaultConversion( editor.conversion );
 			} );
 	} );
 
@@ -225,7 +225,7 @@ describe( 'SetHeaderRowCommand', () => {
 			], { headingRows: 1 } ) );
 		} );
 
-		it( 'should unsetset heading rows attribute', () => {
+		it( 'should remove "headingRows" attribute from table if no value was given', () => {
 			setData( model, modelTable( [
 				[ '[]00' ],
 				[ '10' ],
@@ -551,7 +551,7 @@ describe( 'SetHeaderRowCommand', () => {
 			} );
 		} );
 
-		it( 'should respect forceValue parameter #1', () => {
+		it( 'should respect forceValue parameter (forceValue=true)', () => {
 			setData( model, modelTable( [
 				[ '00' ],
 				[ '[]10' ],
@@ -569,7 +569,7 @@ describe( 'SetHeaderRowCommand', () => {
 			], { headingRows: 3 } ) );
 		} );
 
-		it( 'should respect forceValue parameter #2', () => {
+		it( 'should respect forceValue parameter (forceValue=false)', () => {
 			setData( model, modelTable( [
 				[ '00' ],
 				[ '[]10' ],

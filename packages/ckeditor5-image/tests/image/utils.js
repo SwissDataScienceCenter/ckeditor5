@@ -7,18 +7,27 @@ import ViewDocumentFragment from '@ckeditor/ckeditor5-engine/src/view/documentfr
 import ViewDowncastWriter from '@ckeditor/ckeditor5-engine/src/view/downcastwriter';
 import ViewDocument from '@ckeditor/ckeditor5-engine/src/view/document';
 import ModelElement from '@ckeditor/ckeditor5-engine/src/model/element';
-import { toImageWidget, isImageWidget, getSelectedImageWidget, isImage, isImageAllowed, insertImage } from '../../src/image/utils';
+import {
+	toImageWidget,
+	isImageWidget,
+	getSelectedImageWidget,
+	isImage,
+	isImageAllowed,
+	insertImage,
+	getViewImgFromWidget
+} from '../../src/image/utils';
 import { isWidget, getLabel } from '@ckeditor/ckeditor5-widget/src/utils';
 import Paragraph from '@ckeditor/ckeditor5-paragraph/src/paragraph';
 import VirtualTestEditor from '@ckeditor/ckeditor5-core/tests/_utils/virtualtesteditor';
 import { setData as setModelData, getData as getModelData } from '@ckeditor/ckeditor5-engine/src/dev-utils/model';
 import Image from '../../src/image/imageediting';
+import { StylesProcessor } from '@ckeditor/ckeditor5-engine/src/view/stylesmap';
 
 describe( 'image widget utils', () => {
 	let element, image, writer, viewDocument;
 
 	beforeEach( () => {
-		viewDocument = new ViewDocument();
+		viewDocument = new ViewDocument( new StylesProcessor() );
 		writer = new ViewDowncastWriter( viewDocument );
 		image = writer.createContainerElement( 'img' );
 		element = writer.createContainerElement( 'figure' );
@@ -183,7 +192,7 @@ describe( 'image widget utils', () => {
 		it( 'should be true when the selection is inside isLimit element which allows image', () => {
 			model.schema.register( 'table', { allowWhere: '$block', isLimit: true, isObject: true, isBlock: true } );
 			model.schema.register( 'tableRow', { allowIn: 'table', isLimit: true } );
-			model.schema.register( 'tableCell', { allowIn: 'tableRow', isLimit: true } );
+			model.schema.register( 'tableCell', { allowIn: 'tableRow', isLimit: true, isSelectable: true } );
 			model.schema.extend( '$block', { allowIn: 'tableCell' } );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'table', view: 'table' } );
 			editor.conversion.for( 'downcast' ).elementToElement( { model: 'tableRow', view: 'tableRow' } );
@@ -264,6 +273,50 @@ describe( 'image widget utils', () => {
 			} );
 
 			expect( getModelData( model ) ).to.equal( '<other>[]</other>' );
+		} );
+	} );
+
+	describe( 'getViewImgFromWidget()', () => {
+		// figure
+		//   img
+		it( 'returns the the img element from widget if the img is the first children', () => {
+			expect( getViewImgFromWidget( element ) ).to.equal( image );
+		} );
+
+		// figure
+		//   div
+		//   img
+		it( 'returns the the img element from widget if the img is not the first children', () => {
+			writer.insert( writer.createPositionAt( element, 0 ), writer.createContainerElement( 'div' ) );
+			expect( getViewImgFromWidget( element ) ).to.equal( image );
+		} );
+
+		// figure
+		//   div
+		//     img
+		it( 'returns the the img element from widget if the img is a child of another element', () => {
+			const divElement = writer.createContainerElement( 'div' );
+
+			writer.insert( writer.createPositionAt( element, 0 ), divElement );
+			writer.move( writer.createRangeOn( image ), writer.createPositionAt( divElement, 0 ) );
+
+			expect( getViewImgFromWidget( element ) ).to.equal( image );
+		} );
+
+		// figure
+		//   div
+		//     "Bar"
+		//     img
+		//   "Foo"
+		it( 'does not throw an error if text node found', () => {
+			const divElement = writer.createContainerElement( 'div' );
+
+			writer.insert( writer.createPositionAt( element, 0 ), divElement );
+			writer.insert( writer.createPositionAt( element, 0 ), writer.createText( 'Foo' ) );
+			writer.insert( writer.createPositionAt( divElement, 0 ), writer.createText( 'Bar' ) );
+			writer.move( writer.createRangeOn( image ), writer.createPositionAt( divElement, 1 ) );
+
+			expect( getViewImgFromWidget( element ) ).to.equal( image );
 		} );
 	} );
 } );

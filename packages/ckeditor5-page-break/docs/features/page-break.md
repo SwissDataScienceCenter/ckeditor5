@@ -5,13 +5,23 @@ menu-title: Page break
 
 # Page break
 
-The {@link module:page-break/pagebreak~PageBreak} plugin provides a possibility to insert a page break into the rich-text editor.
+The {@link module:page-break/pagebreak~PageBreak} plugin provides a possibility to insert a page break into the rich-text editor. This is useful in paged editing scenarios where you want to have more control over the final structure of the document that is printed, [exported to PDF](https://ckeditor.com/docs/ckeditor5/latest/features/export-pdf.html) or [to Word](https://ckeditor.com/docs/ckeditor5/latest/features/export-word.html).
+
+The page break feature is further complemented by the [pagination feature](https://ckeditor.com/docs/ckeditor5/latest/features/pagination.html) that allows you to see where page breaks would be after the document is exported to PDF or to Word.
 
 ## Demo
 
 Use the editor to see the {@link module:page-break/pagebreak~PageBreak} plugin in action. Click the button below in order to open the print preview window.
 
 {@snippet features/page-break}
+
+## Related features
+
+Here are some useful CKEditor 5 features that you can use together with the page break plugin for an all-around paged editing experience:
+
+* The [pagination feature](https://ckeditor.com/docs/ckeditor5/latest/features/pagination.html) allows you to see where page breaks would be after the document is [exported to PDF](https://ckeditor.com/docs/ckeditor5/latest/features/export-pdf.html) or [to Word](https://ckeditor.com/docs/ckeditor5/latest/features/export-word.html).
+* The [export to Word](https://ckeditor.com/docs/ckeditor5/latest/features/export-word.html) feature will allow you to generate editable, paged `.docx` files out of your editor-created content.
+* The [export to PDF](https://ckeditor.com/docs/ckeditor5/latest/features/export-pdf.html) feature will allow you to generate portable, paged PDF files out of your editor-created content.
 
 ## Installation
 
@@ -44,7 +54,7 @@ ClassicEditor
 The {@link module:page-break/pagebreak~PageBreak} plugin registers:
 
 * the UI button component (`'pageBreak'`),
-* the `'pageBreak'` command implemented by {@link module:page-break/pagebreakcommand~PageBreakCommand}. 
+* the `'pageBreak'` command implemented by {@link module:page-break/pagebreakcommand~PageBreakCommand}.
 
 The command can be executed using the {@link module:core/editor/editor~Editor#execute `editor.execute()`} method:
 
@@ -59,4 +69,4 @@ editor.execute( 'pageBreak' );
 
 ## Contribute
 
-The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5-page-break.
+The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-page-break.

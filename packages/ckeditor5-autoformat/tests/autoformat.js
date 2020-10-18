@@ -77,6 +77,15 @@ describe( 'Autoformat', () => {
 			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="bulleted">[]</listItem>' );
 		} );
 
+		it( 'should replace a non-empty paragraph using the asterisk', () => {
+			setData( model, '<paragraph>*[]sample text</paragraph>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="bulleted">[]sample text</listItem>' );
+		} );
+
 		it( 'should not replace minus character when inside bulleted list item', () => {
 			setData( model, '<listItem listIndent="0" listType="bulleted">-[]</listItem>' );
 			model.change( writer => {
@@ -115,6 +124,15 @@ describe( 'Autoformat', () => {
 			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="numbered">[]</listItem>' );
 		} );
 
+		it( 'should replace a non-empty paragraph using the parenthesis format', () => {
+			setData( model, '<paragraph>1)[]sample text</paragraph>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="numbered">[]sample text</listItem>' );
+		} );
+
 		it( 'should not replace digit character when there is no . or ) in the format', () => {
 			setData( model, '<paragraph>1[]</paragraph>' );
 			model.change( writer => {
@@ -149,6 +167,24 @@ describe( 'Autoformat', () => {
 			} );
 
 			expect( getData( model ) ).to.equal( '<paragraph>Foo<softBreak></softBreak>1. []</paragraph>' );
+		} );
+
+		it( 'should be converted from a header', () => {
+			setData( model, '<heading1>1.[]</heading1>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="numbered">[]</listItem>' );
+		} );
+
+		it( 'should be converted from a bulleted list', () => {
+			setData( model, '<listItem listIndent="0" listType="bulleted">1.[]</listItem>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<listItem listIndent="0" listType="numbered">[]</listItem>' );
 		} );
 	} );
 
@@ -243,6 +279,15 @@ describe( 'Autoformat', () => {
 
 			expect( getData( model ) ).to.equal( '<paragraph>Foo<softBreak></softBreak># []</paragraph>' );
 		} );
+
+		it( 'should convert a header that already contains a text', () => {
+			setData( model, '<heading1>###[]foo</heading1>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<heading3>[]foo</heading3>' );
+		} );
 	} );
 
 	describe( 'Block quote', () => {
@@ -255,13 +300,22 @@ describe( 'Autoformat', () => {
 			expect( getData( model ) ).to.equal( '<blockQuote><paragraph>[]</paragraph></blockQuote>' );
 		} );
 
-		it( 'should not replace greater-than character when inside heading', () => {
+		it( 'should replace greater-than character in a non-empty paragraph', () => {
+			setData( model, '<paragraph>>[]foo</paragraph>' );
+			model.change( writer => {
+				writer.insertText( ' ', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<blockQuote><paragraph>[]foo</paragraph></blockQuote>' );
+		} );
+
+		it( 'should wrap the heading if greater-than character was used', () => {
 			setData( model, '<heading1>>[]</heading1>' );
 			model.change( writer => {
 				writer.insertText( ' ', doc.selection.getFirstPosition() );
 			} );
 
-			expect( getData( model ) ).to.equal( '<heading1>> []</heading1>' );
+			expect( getData( model ) ).to.equal( '<blockQuote><heading1>[]</heading1></blockQuote>' );
 		} );
 
 		it( 'should not replace greater-than character when inside numbered list', () => {
@@ -302,6 +356,24 @@ describe( 'Autoformat', () => {
 			expect( getData( model ) ).to.equal( '<codeBlock language="plaintext">[]</codeBlock>' );
 		} );
 
+		it( 'should replace triple grave accents in a heading', () => {
+			setData( model, '<heading1>``[]</heading1>' );
+			model.change( writer => {
+				writer.insertText( '`', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<codeBlock language="plaintext">[]</codeBlock>' );
+		} );
+
+		it( 'should replace triple grave accents in a non-empty paragraph', () => {
+			setData( model, '<paragraph>``[]let foo = 1;</paragraph>' );
+			model.change( writer => {
+				writer.insertText( '`', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<codeBlock language="plaintext">[]let foo = 1;</codeBlock>' );
+		} );
+
 		it( 'should not replace triple grave accents when already in a code block', () => {
 			setData( model, '<codeBlock language="plaintext">``[]</codeBlock>' );
 			model.change( writer => {
@@ -309,15 +381,6 @@ describe( 'Autoformat', () => {
 			} );
 
 			expect( getData( model ) ).to.equal( '<codeBlock language="plaintext">```[]</codeBlock>' );
-		} );
-
-		it( 'should not replace triple grave accents when inside heading', () => {
-			setData( model, '<heading1>``[]</heading1>' );
-			model.change( writer => {
-				writer.insertText( '`', doc.selection.getFirstPosition() );
-			} );
-
-			expect( getData( model ) ).to.equal( '<heading1>```[]</heading1>' );
 		} );
 
 		it( 'should not replace triple grave accents when inside numbered list', () => {
@@ -408,6 +471,152 @@ describe( 'Autoformat', () => {
 			} );
 
 			expect( getData( model ) ).to.equal( '<paragraph>**foobar**[]</paragraph>' );
+		} );
+
+		it( 'should not format if the plugin is disabled', () => {
+			editor.plugins.get( 'Autoformat' ).forceDisabled( 'Test' );
+
+			setData( model, '<paragraph>**foobar*[]</paragraph>' );
+
+			model.change( writer => {
+				writer.insertText( '*', doc.selection.getFirstPosition() );
+			} );
+
+			expect( getData( model ) ).to.equal( '<paragraph>**foobar**[]</paragraph>' );
+		} );
+
+		describe( 'with code element', () => {
+			describe( 'should not format (inside)', () => {
+				it( '* inside', () => {
+					setData( model, '<paragraph><$text code="true">fo*obar[]</$text></paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '*', { code: true }, doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo*obar*[]</$text></paragraph>' );
+				} );
+
+				it( '__ inside', () => {
+					setData( model, '<paragraph><$text code="true">fo__obar_[]</$text></paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '_', { code: true }, doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo__obar__[]</$text></paragraph>' );
+				} );
+
+				it( '~~ inside', () => {
+					setData( model, '<paragraph><$text code="true">fo~~obar~[]</$text></paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '~', { code: true }, doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo~~obar~~[]</$text></paragraph>' );
+				} );
+
+				it( '` inside', () => {
+					setData( model, '<paragraph><$text code="true">fo`obar[]</$text></paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '`', { code: true }, doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo`obar`[]</$text></paragraph>' );
+				} );
+			} );
+
+			describe( 'should not format (across)', () => {
+				it( '* across', () => {
+					setData( model, '<paragraph><$text code="true">fo*o</$text>bar[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '*', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo*o</$text>bar*[]</paragraph>' );
+				} );
+				it( '__ across', () => {
+					setData( model, '<paragraph><$text code="true">fo__o</$text>bar_[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '_', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo__o</$text>bar__[]</paragraph>' );
+				} );
+				it( '~~ across', () => {
+					setData( model, '<paragraph><$text code="true">fo~~o</$text>bar~[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '~', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo~~o</$text>bar~~[]</paragraph>' );
+				} );
+				it( '` across', () => {
+					setData( model, '<paragraph><$text code="true">fo`o</$text>bar[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '`', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo`o</$text>bar`[]</paragraph>' );
+				} );
+			} );
+
+			describe( 'should format', () => {
+				it( '* after', () => {
+					setData( model, '<paragraph><$text code="true">fo*o</$text>b*ar[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '*', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo*o</$text>b<$text italic="true">ar</$text>[]</paragraph>' );
+				} );
+				it( '__ after', () => {
+					setData( model, '<paragraph><$text code="true">fo__o</$text>b__ar_[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '_', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo__o</$text>b<$text bold="true">ar</$text>[]</paragraph>' );
+				} );
+				it( '~~ after', () => {
+					setData( model, '<paragraph><$text code="true">fo~~o</$text>b~~ar~[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '~', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo~~o</$text>b<$text strikethrough="true">ar</$text>[]</paragraph>' );
+				} );
+				it( '` after', () => {
+					setData( model, '<paragraph><$text code="true">fo`o</$text>b`ar[]</paragraph>' );
+
+					model.change( writer => {
+						writer.insertText( '`', doc.selection.getFirstPosition() );
+					} );
+
+					expect( getData( model ) ).to
+						.equal( '<paragraph><$text code="true">fo`o</$text>b<$text code="true">ar</$text>[]</paragraph>' );
+				} );
+			} );
 		} );
 
 		it( 'should work with <softBreak>s in paragraph', () => {

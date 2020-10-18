@@ -5,7 +5,7 @@ category: features
 
 {@snippet features/build-basic-styles-source}
 
-The {@link api/basic-styles basic styles} package provides text formatting features such as bold, italic, underline, strikethrough, subscript, superscript, and code.
+The {@link api/basic-styles basic styles} feature allows you to apply the most frequently used formatting indispensable for content creation. This package provides essential text styling features such as bold, italic, underline, strikethrough, subscript, superscript, and code. Coupled with more [formatting features](#related-features), these serve as a base for any WYSIWYG editor toolset.
 
 <info-box info>
 	All basic text styles can be removed with the {@link features/remove-format remove format} feature.
@@ -14,6 +14,15 @@ The {@link api/basic-styles basic styles} package provides text formatting featu
 ## Demo
 
 {@snippet features/basic-styles}
+
+## Related features
+
+Check out also these CKEditor 5 features to gain better control over your content style and format:
+* {@link features/font Font styles} &ndash; Easily and efficiently control the font {@link features/font#configuring-the-font-family-feature family}, {@link features/font#configuring-the-font-size-feature size}, {@link features/font#configuring-the-font-color-and-font-background-color-features text or background color}.
+* {@link features/text-alignment Text alignment} &ndash; Because it does matter whether the content is left, right, centered or justified.
+* {@link features/code-blocks Code blocks}  &ndash; Insert longer, multiline code listings, expanding the inline code style greatly.
+* {@link features/highlight Highlight} &ndash; Mark important words and passages, aiding a review or drawing attention to specific parts of content.
+* {@link features/remove-format Remove format} &ndash; Easily clean basic text formatting.
 
 ## Available text styles
 
@@ -46,6 +55,18 @@ By default, each feature can upcast more than one type of the content. Here's th
 | {@link module:basic-styles/code~Code} | `<code>`, `<* style="word-wrap: break-word">` |
 | {@link module:basic-styles/subscript~Subscript} | `<sub>`, `<* style="vertical-align: sub">` |
 | {@link module:basic-styles/superscript~Superscript} | `<sup>`, `<* style="vertical-align: super">` |
+
+## Typing around inline code
+
+CKEditor 5 allows for typing both at inner and outer boundaries of code to make the editing easier for the users.
+
+**To type inside a code element**, move the caret to its (start or end) boundary. As long as the code remains highlighted (by default: less transparent gray), typing and applying formatting will be done within its boundaries:
+
+{@img assets/img/typing-inside-code.gif 770 The animation showing typing inside the code element in CKEditor 5 rich text editor.}
+
+**To type before or after a code element**, move the caret to its boundary, then press the Arrow key (<kbd>→</kbd> or <kbd>←</kbd>) once. The code is no longer highlighted and whatever text you type or formatting you apply will not be enclosed by the code element:
+
+{@img assets/img/typing-after-code.gif 770 The animation showing typing after the code element in CKEditor 5 rich text editor.}
 
 ## Installation
 
@@ -95,4 +116,4 @@ editor.execute( 'bold' );
 
 ## Contribute
 
-The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5-basic-styles.
+The source code of the feature is available on GitHub in https://github.com/ckeditor/ckeditor5/tree/master/packages/ckeditor5-basic-styles.

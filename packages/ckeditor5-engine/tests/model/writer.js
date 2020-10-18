@@ -86,6 +86,35 @@ describe( 'Writer', () => {
 		} );
 	} );
 
+	describe( 'cloneElement()', () => {
+		it( 'should make deep copy of element', () => {
+			const element = createElement( 'foo', { 'abc': '123' } );
+
+			insertElement( createElement( 'bar', { 'xyz': '789' } ), element );
+
+			const clonedElement = cloneElement( element );
+
+			expect( clonedElement ).to.not.equal( element );
+			expect( clonedElement.getChild( 0 ) ).to.not.equal( element.getChild( 0 ) );
+			expect( clonedElement.toJSON() ).to.deep.equal( element.toJSON() );
+		} );
+
+		it( 'should make shallow copy of element', () => {
+			const element = createElement( 'foo', { 'abc': '123' } );
+
+			insertElement( createElement( 'bar', { 'xyz': '789' } ), element );
+
+			const elementJson = element.toJSON();
+			delete elementJson.children;
+
+			const clonedElement = cloneElement( element, false );
+
+			expect( clonedElement ).to.not.equal( element );
+			expect( clonedElement.childCount ).to.equal( 0 );
+			expect( clonedElement.toJSON() ).to.deep.equal( elementJson );
+		} );
+	} );
+
 	describe( 'insert()', () => {
 		it( 'should insert node at given position', () => {
 			const parent = createDocumentFragment();
@@ -2128,13 +2157,13 @@ describe( 'Writer', () => {
 		it( 'should throw if options.usingOperation is not defined', () => {
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name' );
-			}, /^writer-addMarker-no-usingOperation/, model );
+			}, '^writer-addmarker-no-usingoperation', model );
 		} );
 
 		it( 'should throw if name and range is defined but options.usingOperation is not defined', () => {
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name', { range } );
-			}, /^writer-addMarker-no-usingOperation/, model );
+			}, '^writer-addmarker-no-usingoperation', model );
 		} );
 
 		it( 'should add marker to the document marker collection', () => {
@@ -2186,7 +2215,7 @@ describe( 'Writer', () => {
 
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name', { range: range2, usingOperation: false } );
-			}, /^writer-addMarker-marker-exists/, model );
+			}, 'writer-addmarker-marker-exists', model );
 		} );
 
 		it( 'should use operations when having set usingOperation to true', () => {
@@ -2206,13 +2235,13 @@ describe( 'Writer', () => {
 		it( 'should throw if marker with given name does not exist and range is not passed', () => {
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name', { usingOperation: true } );
-			}, /^writer-addMarker-no-range/, model );
+			}, 'writer-addmarker-no-range', model );
 		} );
 
 		it( 'should throw if marker is set directly and range is not passed', () => {
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name', { usingOperation: false } );
-			}, /^writer-addMarker-no-range/, model );
+			}, 'writer-addmarker-no-range', model );
 		} );
 
 		it( 'should throw when trying to use detached writer', () => {
@@ -2458,13 +2487,13 @@ describe( 'Writer', () => {
 			expectToThrowCKEditorError( () => {
 				addMarker( 'name', { range, usingOperation: false } );
 				updateMarker( 'name', {} );
-			}, /^writer-updateMarker-wrong-options/, model );
+			}, 'writer-updatemarker-wrong-options', model );
 		} );
 
 		it( 'should throw when marker provided by name does not exists', () => {
 			expectToThrowCKEditorError( () => {
 				updateMarker( 'name', { usingOperation: false } );
-			}, /^writer-updateMarker-marker-not-exists/, model );
+			}, 'writer-updatemarker-marker-not-exists', model );
 		} );
 
 		it( 'should only refresh the marker when there is no provided options to update', () => {
@@ -2511,7 +2540,7 @@ describe( 'Writer', () => {
 		it( 'should throw when trying to remove non existing marker', () => {
 			expectToThrowCKEditorError( () => {
 				removeMarker( 'name' );
-			}, /^writer-removeMarker-no-marker/, model );
+			}, 'writer-removemarker-no-marker', model );
 		} );
 
 		it( 'should throw when trying to use detached writer', () => {
@@ -2899,6 +2928,12 @@ describe( 'Writer', () => {
 	function createDocumentFragment() {
 		return model.change( writer => {
 			return writer.createDocumentFragment();
+		} );
+	}
+
+	function cloneElement( element, deep ) {
+		return model.change( writer => {
+			return writer.cloneElement( element, deep );
 		} );
 	}
 

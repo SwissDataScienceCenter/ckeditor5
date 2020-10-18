@@ -8,6 +8,7 @@
  */
 
 import Plugin from '@ckeditor/ckeditor5-core/src/plugin';
+import PastePlainText from './pasteplaintext';
 
 import ClipboardObserver from './clipboardobserver';
 
@@ -33,6 +34,13 @@ export default class Clipboard extends Plugin {
 	 */
 	static get pluginName() {
 		return 'Clipboard';
+	}
+
+	/**
+	 * @inheritDoc
+	 */
+	static get requires() {
+		return [ PastePlainText ];
 	}
 
 	/**
@@ -77,7 +85,11 @@ export default class Clipboard extends Plugin {
 			content = this._htmlDataProcessor.toView( content );
 
 			const eventInfo = new EventInfo( this, 'inputTransformation' );
-			this.fire( eventInfo, { content, dataTransfer } );
+			this.fire( eventInfo, {
+				content,
+				dataTransfer,
+				asPlainText: data.asPlainText
+			} );
 
 			// If CKEditor handled the input, do not bubble the original event any further.
 			// This helps external integrations recognize that fact and act accordingly.
@@ -103,7 +115,27 @@ export default class Clipboard extends Plugin {
 					return;
 				}
 
+				// Plain text can be determined based on event flag (#7799) or auto detection (#1006). If detected
+				// preserve selection attributes on pasted items.
+				if ( data.asPlainText || isPlainTextFragment( modelFragment ) ) {
+					// Consider only formatting attributes.
+					const textAttributes = new Map( Array.from( modelDocument.selection.getAttributes() ).filter(
+						keyValuePair => editor.model.schema.getAttributeProperties( keyValuePair[ 0 ] ).isFormatting
+					) );
+
+					model.change( writer => {
+						const range = writer.createRangeIn( modelFragment );
+
+						for ( const item of range.getItems() ) {
+							if ( item.is( '$text' ) || item.is( '$textProxy' ) ) {
+								writer.setAttributes( textAttributes, item );
+							}
+						}
+					} );
+				}
+
 				model.insertContent( modelFragment );
+
 				evt.stop();
 			}
 		}, { priority: 'low' } );
@@ -159,6 +191,7 @@ export default class Clipboard extends Plugin {
  * It can be modified by the event listeners. Read more about the clipboard pipelines in
  * {@glink framework/guides/deep-dive/clipboard "Clipboard" deep dive}.
  * @param {module:clipboard/datatransfer~DataTransfer} data.dataTransfer Data transfer instance.
+ * @param {Boolean} data.asPlainText If set to `true` content is pasted as plain text.
  */
 
 /**
@@ -198,3 +231,17 @@ export default class Clipboard extends Plugin {
  *
  * @member {'copy'|'cut'} module:clipboard/clipboard~ClipboardOutputEventData#method
  */
+
+// Returns true if specified `documentFragment` represents a plain text.
+//
+// @param {module:engine/view/documentfragment~DocumentFragment} documentFragment
+// @returns {Boolean}
+function isPlainTextFragment( documentFragment ) {
+	if ( documentFragment.childCount > 1 ) {
+		return false;
+	}
+
+	const child = documentFragment.getChild( 0 );
+
+	return [ ...child.getAttributeKeys() ].length == 0;
+}

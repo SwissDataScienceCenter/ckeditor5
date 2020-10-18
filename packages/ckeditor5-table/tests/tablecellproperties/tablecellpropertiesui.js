@@ -20,7 +20,7 @@ import Table from '../../src/table';
 import TableCellPropertiesEditing from '../../src/tablecellproperties/tablecellpropertiesediting';
 import TableCellPropertiesUI from '../../src/tablecellproperties/tablecellpropertiesui';
 import TableCellPropertiesUIView from '../../src/tablecellproperties/ui/tablecellpropertiesview';
-import { defaultColors } from '../../src/ui/utils';
+import { defaultColors } from '../../src/utils/ui/table-properties';
 import { modelTable } from '../_utils/utils';
 
 describe( 'table cell properties', () => {
@@ -120,6 +120,28 @@ describe( 'table cell properties', () => {
 
 					tableCellPropertiesButton.fire( 'execute' );
 					sinon.assert.calledOnce( spy );
+				} );
+
+				it( 'should be disabled if all of the table cell properties commands are disabled', () => {
+					[
+						'tableCellBorderStyle',
+						'tableCellBorderColor',
+						'tableCellBorderWidth',
+						'tableCellWidth',
+						'tableCellHeight',
+						'tableCellPadding',
+						'tableCellBackgroundColor',
+						'tableCellHorizontalAlignment',
+						'tableCellVerticalAlignment'
+					].forEach( command => {
+						editor.commands.get( command ).isEnabled = false;
+					} );
+
+					expect( tableCellPropertiesButton.isEnabled ).to.be.false;
+
+					editor.commands.get( 'tableCellBackgroundColor' ).isEnabled = true;
+
+					expect( tableCellPropertiesButton.isEnabled ).to.be.true;
 				} );
 			} );
 		} );
